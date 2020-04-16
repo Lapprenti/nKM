@@ -1,0 +1,35 @@
+.match-parent {
+  width: 100%;
+  height: 100%;
+  top: 0;
+  bottom: 0;
+  position: absolute;
+}
+
+.center-action {
+  position: absolute;
+  top: 15px;
+  left: 15px;
+  width: 50px;
+  height: 50px;
+  background-color: #fff;
+  z-index: 2;
+  border-radius: 5px;
+  cursor: pointer;
+  text-align: center;
+
+  ion-icon {
+    width: 35px;
+    height: 35px;
+  }
+}
+
+#addressSearch {
+  position: absolute;
+  top: 21px;
+  right: 15px;
+  width: calc(100% - 95px);
+  z-index: 2;
+  border-radius: 5px;
+  font-size: 1.5em;
+}
