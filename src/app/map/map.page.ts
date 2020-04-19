@@ -1,4 +1,6 @@
-import { mapBoxAccessToken } from './../../environments/environment';
+import { Subject } from 'rxjs';
+import { SharedService } from './../shared.service';
+import { mapBoxAccessToken, mapStyle, mapDarkStyle, mapLightStyle } from './../../environments/environment';
 import { Component, OnInit } from '@angular/core';
 
 import { environment } from '../../environments/environment';
@@ -14,18 +16,22 @@ import {
 })
 export class MapPage implements OnInit {
 
-
-  // A voir comment changer dans la page de configuration 
-  public static mapStyle = 'mapbox://styles/mapbox/streets-v11';
-
   static readonly _MAP_CONTAINER: string = 'map';
   static readonly _DEFAULT_ZOOM: number = 16;
   static readonly _MIN_ZOOM_ALLOWED: number = 1;
   static readonly _MAX_ZOOM_ALLOWED: number = 22;
 
+  // default light style
+  private mapStyle = mapLightStyle;
   public map: Map;
 
-  constructor() { }
+  constructor(private service: SharedService) {
+
+    // observe the service property if change set new style
+    service.getTheme().subscribe( (t) => {
+      this.map.setStyle(t);
+    });
+  }
 
   ngOnInit() {
     this.initMap();
@@ -41,7 +47,7 @@ export class MapPage implements OnInit {
   public initMap(): void {
     this.map = new Map({
       container: MapPage._MAP_CONTAINER,
-      style: MapPage.mapStyle,
+      style: this.mapStyle,
       zoom: MapPage._MIN_ZOOM_ALLOWED,
       maxZoom: MapPage._MAX_ZOOM_ALLOWED,
       center: [47.322194, 5.041960],

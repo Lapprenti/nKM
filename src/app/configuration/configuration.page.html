@@ -5,5 +5,12 @@
 </ion-header>
 
 <ion-content>
-
+    <ion-item>
+      <ion-icon slot="start" name="moon-outline"></ion-icon>
+      <ion-label>
+        Mode sombre
+      </ion-label>
+      <!-- (ionChange)="changeTheme($event)" -->
+      <ion-toggle id="test" (ionChange)="changeTheme($event)" slot="end"></ion-toggle>
+    </ion-item>
 </ion-content>
