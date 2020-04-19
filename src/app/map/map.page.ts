@@ -1,9 +1,6 @@
-import { Subject } from 'rxjs';
 import { SharedService } from './../shared.service';
-import { mapBoxAccessToken, mapStyle, mapDarkStyle, mapLightStyle } from './../../environments/environment';
+import { mapBoxAccessToken, mapLightStyle } from './../../environments/environment';
 import { Component, OnInit } from '@angular/core';
-
-import { environment } from '../../environments/environment';
 
 import {
   Map
