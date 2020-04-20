@@ -1,5 +1,6 @@
+import { Storage } from '@ionic/storage';
 import { SharedService } from './../shared.service';
-import { mapBoxAccessToken, mapLightStyle } from './../../environments/environment';
+import { mapBoxAccessToken, mapLightStyle, mapDarkStyle } from './../../environments/environment';
 import { Component, OnInit } from '@angular/core';
 
 import {
@@ -19,23 +20,38 @@ export class MapPage implements OnInit {
   static readonly _MAX_ZOOM_ALLOWED: number = 22;
 
   // default light style
-  private mapStyle = mapLightStyle;
+  private mapStyle = '';
   public map: Map;
 
-  constructor(private service: SharedService) {
-
-    // observe the service property if change set new style
-    service.getTheme().subscribe( (t) => {
-      this.map.setStyle(t);
+  constructor(private storage: Storage, private service: SharedService) {
+    console.log('ctor')
+    this.storage.get('style').then((theme) => {
+      if (theme) {
+        if (theme === 'dark') {
+          this.service.updateMapStyle(mapDarkStyle);
+          this.service.updateTheme('dark');
+        } else {
+          this.service.updateMapStyle(mapLightStyle);
+          this.service.updateTheme('light');
+        }
+      }
     });
   }
 
   ngOnInit() {
-    this.initMap();
-  }
-
-  ngAfterContentInit(): void {
-    this.listenMapOnLoad();
+    console.log('nginit')
+    // this.initMap();
+    this.service.getMapStyle().subscribe( (mapStyle) => {
+      console.log(mapStyle)
+      if (this.map) {
+        console.log('map deja existante changement du fond de carte');
+        this.map.setStyle(mapStyle);
+      } else {
+        console.log('initialisation de la map');
+        this.mapStyle = mapStyle;
+        this.initMap();
+      }
+    });
   }
 
   /**
@@ -51,14 +67,16 @@ export class MapPage implements OnInit {
       accessToken: mapBoxAccessToken
     });
 
-    this.map.resize();
+    this.map.on('load', () => {
+      this.map.resize();
+    });
   }
 
   public listenMapOnLoad() {
-    this.map.on('load', () => {
-      console.log('je recharge');
-      this.map.resize();
-    });
+    // this.map.on('load', () => {
+    //   console.log('je recharge');
+    //   this.map.resize();
+    // });
   }
 
 }

@@ -1,22 +1,34 @@
 import { Injectable } from '@angular/core';
-import { Observable, Subject } from 'rxjs';
+import { Observable, Subject, of } from 'rxjs';
+
+import { Storage } from '@ionic/storage';
+import { mapLightStyle, mapDarkStyle } from 'src/environments/environment';
 
 @Injectable({
   providedIn: 'root'
 })
 export class SharedService {
 
-  constructor() { }
-
-  // private theme: string;
+  // init properties as subjects
+  private mapStyle = new Subject<string>();
   private theme = new Subject<string>();
 
+  constructor(private storage: Storage) {
+  }
+
   getTheme(): Observable<string> {
-    console.log();
     return this.theme.asObservable();
   }
 
   updateTheme(t: string) {
     this.theme.next(t);
+  }
+
+  getMapStyle(): Observable<string> {
+    return this.mapStyle.asObservable();
+  }
+
+  updateMapStyle(t: string) {
+    this.mapStyle.next(t);
   }
 }

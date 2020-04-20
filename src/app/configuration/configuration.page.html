@@ -10,7 +10,7 @@
       <ion-label>
         Mode sombre
       </ion-label>
-      <!-- (ionChange)="changeTheme($event)" -->
-      <ion-toggle id="test" (ionChange)="changeTheme($event)" slot="end"></ion-toggle>
+      <!-- checked=""-->
+      <ion-toggle (ionChange)="changeTheme($event)" slot="end" checked="{{isDarkTheme}}"></ion-toggle>
     </ion-item>
 </ion-content>
