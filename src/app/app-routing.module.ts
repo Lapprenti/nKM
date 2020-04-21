@@ -4,17 +4,18 @@ import { PreloadAllModules, RouterModule, Routes } from '@angular/router';
 const routes: Routes = [
   {
     path: '',
-    redirectTo: 'map',
+    redirectTo: 'main/map',
     pathMatch: 'full'
   },
   {
-    path: 'map',
-    loadChildren: () => import('./map/map.module').then( m => m.MapPageModule)
+    path: 'refus',
+    loadChildren: () => import('./refus/refus.module').then( r => r.RefusPageModule)
   },
   {
-    path: 'configuration',
-    loadChildren: () => import('./configuration/configuration.module').then( cfg => cfg.ConfigurationPageModule)
+    path: 'main',
+    loadChildren: () => import('./main/main.module').then(m => m.MainPageModule)
   }
+
 ];
 @NgModule({
   imports: [

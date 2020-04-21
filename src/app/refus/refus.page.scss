@@ -1,0 +1,13 @@
+ion-grid{
+  height: 100%;
+  align-content: center;
+}
+
+ion-row{
+  height: 49%; 
+  flex-direction: column;
+}
+
+ion-row.custom{
+  height: 100%!important; 
+}

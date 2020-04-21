@@ -1,3 +1,6 @@
+import { LaunchModalPage } from './launch-modal/launch-modal.page';
+import { ModalController } from '@ionic/angular';
+
 import { SharedService } from './shared.service';
 import { Storage } from '@ionic/storage';
 import { Component } from '@angular/core';
@@ -18,9 +21,19 @@ export class AppComponent {
     private splashScreen: SplashScreen,
     private statusBar: StatusBar,
     private storage: Storage,
-    private service: SharedService
+    private service: SharedService,
+    public modalController: ModalController
   ) {
     this.initializeApp();
+    // this.storage.clear();
+    this.storage.get('cgu_accept').then((accepted) => {
+
+      // The legal part is not already agreed
+      if (!accepted) {
+        this.showModal();
+      }
+
+    });
 
     /**
      * Get the style property in local storage
@@ -44,5 +57,15 @@ export class AppComponent {
       this.splashScreen.hide();
 
     });
+  }
+
+  async showModal() {
+    const modal = await this.modalController.create({
+      component: LaunchModalPage,
+      componentProps: { },
+      showBackdrop: true,
+      backdropDismiss: false
+    });
+    return await modal.present();
   }
 }
