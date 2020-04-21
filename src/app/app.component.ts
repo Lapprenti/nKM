@@ -28,7 +28,7 @@ export class AppComponent {
     // this.storage.clear();
     this.storage.get('cgu_accept').then((accepted) => {
 
-      // The legal part is not already agreed
+      // The legal part is not already agreed or not exists
       if (!accepted) {
         this.showModal();
       }
