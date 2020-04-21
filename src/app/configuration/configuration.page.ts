@@ -67,4 +67,10 @@ export class ConfigurationPage implements OnInit {
     }
   }
 
+  removeAllData() {
+
+    // remove all map data
+    this.storage.remove('geojson');
+  }
+
 }
