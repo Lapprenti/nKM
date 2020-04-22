@@ -2,7 +2,6 @@ import { Injectable } from '@angular/core';
 import { Observable, Subject, of } from 'rxjs';
 
 import { Storage } from '@ionic/storage';
-import { mapLightStyle, mapDarkStyle } from 'src/environments/environment';
 
 @Injectable({
   providedIn: 'root'

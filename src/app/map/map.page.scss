@@ -4,32 +4,86 @@
   top: 0;
   bottom: 0;
   position: absolute;
+  //display:none;
 }
 
 .center-action {
-  position: absolute;
-  top: 15px;
-  left: 15px;
-  width: 50px;
-  height: 50px;
-  background-color: #fff;
+  position: relative;
+  top: 0px;
+  left: 15px!important;
+  width: 42px;
+  height: 42px;
+  background-color: primary;
   z-index: 2;
-  border-radius: 5px;
+  //border-radius: 5px;
   cursor: pointer;
-  text-align: center;
+  // text-align: center;
 
   ion-icon {
     width: 35px;
     height: 35px;
   }
 }
+ion-list{
+  // top: 5px!important;
+  // padding-top: 0px!important;
+  // width:99%!important;
+}
+.sc-ion-searchbar-md-h{
+  padding-top: 0px!important;
+  padding-bottom: 1px!important;
+  padding-left: 0px!important;
+  padding-right: 0px!important;
+  height: 50px;
+}
 
-#addressSearch {
+.sc-ion-searchbar-ios-h{
+  padding-top: 0px!important;
+  padding-bottom: 1px!important;
+  padding-left: 0px!important;
+  padding-right: 0px!important;
+  height: 50px;
+}
+// .searchbar-input.sc-ion-searchbar-md{
+//   height:50px!important;
+// }
+
+
+ion-col{
+  padding:0px;
+}
+
+.searchElements {
+  padding-top:0px!important;
+  padding-right:0px!important;
+  // padding-left: 20px!important;
+  // padding-right: 20px!important;
+}
+
+#controls {
   position: absolute;
-  top: 21px;
-  right: 15px;
-  width: calc(100% - 95px);
+  top: calc(1%);
+  right: 15px!important;
+  left: 15px!important;
+  width: 100%;
+  z-index: 2!important;
+  border-radius: 5px!important;
+  // font-size: 1.5em!important;
+}
+
+#searchModule{
+  // position: relative;
+  height: 50px;
+  padding-left: 20px!important;
+  padding-right: calc(5%) !important;
+}
+
+.searchbar-input-container .searchbar-input{
+  height: 50px!important;
+}
+
+#searchResults{
+  position: absolute; 
+  width: 100%; 
   z-index: 2;
-  border-radius: 5px;
-  font-size: 1.5em;
 }

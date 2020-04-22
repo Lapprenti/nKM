@@ -27,7 +27,9 @@
     "@ionic/storage": "^2.2.0",
     "cordova-sqlite-storage": "^5.0.0",
     "core-js": "^2.5.4",
+    "geojson": "^0.5.0",
     "mapbox-gl": "^1.9.1",
+    "mapbox-gl-geocoder": "^2.0.1",
     "rxjs": "~6.5.1",
     "tslib": "^1.9.0",
     "zone.js": "~0.9.1"
