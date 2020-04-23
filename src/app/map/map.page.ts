@@ -8,12 +8,14 @@ import { Component, OnInit } from '@angular/core';
 import {
   Feature,
   FeatureCollection,
-  Point
+  Point,
+  Polygon
 } from 'geojson';
 import {
   Map,
   Layer,
-  GeoJSONSourceOptions
+  GeoJSONSourceOptions,
+  GeoJSONSource
 } from 'mapbox-gl';
 
 @Component({
@@ -38,7 +40,12 @@ export class MapPage implements OnInit {
   private mapStyle: string;
   public map: Map;
 
-  public userZonesData: FeatureCollection<Feature<Point>>;
+  // Source data for map layers
+  public userZonesData: FeatureCollection<Point>;
+  public userZonesDataAsCircles: FeatureCollection<Polygon> = {
+    type: 'FeatureCollection',
+    features: []
+  };
   public userLocationData: FeatureCollection<Point> = {
     type: 'FeatureCollection',
     features: []
@@ -84,11 +91,12 @@ export class MapPage implements OnInit {
     });
 
     // Get the user saved data or create one empty
-    this.storage.get('userZonesData').then((fc): FeatureCollection<Feature<Point>> => {
+    this.storage.get('userZonesData').then((fc: FeatureCollection<Point>): any => {
       if (fc) {
         this.userZonesData = fc;
         console.log('was userZonesData');
         console.log(this.userZonesData);
+        this.initZonesDataSource(fc);
       } else {
         this.userZonesData = {
           type: 'FeatureCollection',
@@ -96,6 +104,7 @@ export class MapPage implements OnInit {
         };
         console.log('userZoneData new');
         console.log(this.userZonesData);
+        this.initZonesDataSource();
       }
     });
   }
@@ -131,13 +140,10 @@ export class MapPage implements OnInit {
 
     this.map.on('load', () => {
       this.map.resize();
-
-      setTimeout(() => {
-        // this.map.addSource('user', { type: 'geojson', ...this.userSource });
-
-        this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
-        this.addLayerToMap(this.zonesLayer);
-      }, 2000);
+      console.log('this.userZonesDataAsCircles');
+      console.log(this.userZonesDataAsCircles);
+      this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
+      this.addLayerToMap(this.zonesLayer);
     });
 
 
@@ -171,9 +177,11 @@ export class MapPage implements OnInit {
     const searchTerm = event.target.value.toLowerCase();
     if (searchTerm && searchTerm.length > 0) {
       this.geoService
-        .searchAddressWithWordStart(searchTerm).subscribe((featureCollection): FeatureCollection<Feature> => {
+        .searchAddressWithWordStart(searchTerm)
+        .subscribe((featureCollection: FeatureCollection<Point>) => {
+          console.log(featureCollection);
           this.featureCollectionSearchResults = featureCollection;
-          console.log(featureCollection)
+          console.log(this.featureCollectionSearchResults);
           if (this.featureCollectionSearchResults.features) {
             if (this.featureCollectionSearchResults.features.length > 0) {
               this.shouldDisplayAddresses = true;
@@ -185,15 +193,15 @@ export class MapPage implements OnInit {
       }
   }
 
-  onSelectProposedAddress(feature: Feature) {
+  onSelectProposedAddress(feature: Feature<Point>) {
     console.log(feature);
     this.shouldDisplayAddresses = false;
     this.selectedFeature = feature;
-    this.selectedFeaturePlaceName = feature.place_name;
+    this.selectedFeaturePlaceName = feature.properties.place_name;
 
     const featureId = feature.id;
     const featureType = feature.type;
-    const featureFrenchName: string = feature.place_name_fr;
+    // const featureFrenchName: string = feature.properties.place_name_fr;
     const featureGeometry = feature.geometry;
 
     const featureToSave: Feature<Point> = {
@@ -204,9 +212,19 @@ export class MapPage implements OnInit {
       geometry: featureGeometry
     };
 
-    // add feature to map
+    const featureToDraw = this.generateCircle(
+      [featureGeometry.coordinates[0], featureGeometry.coordinates[1]],
+      1,
+      512,
+      featureId
+    );
+
+    // data sets updates
     this.addFeatureToDataset(featureToSave, this.userZonesData);
-    this.updateSourceDataset('zones', this.userZonesData);
+    this.addFeatureToDataset(featureToDraw, this.userZonesDataAsCircles);
+    this.updateSourceDataset('zones', this.userZonesDataAsCircles);
+
+    // fly to freshly added feature
     this.map.flyTo({
       center: [feature.geometry.coordinates[0], feature.geometry.coordinates[1]],
       zoom: MapPage._DEFAULT_ZOOM,
@@ -218,9 +236,10 @@ export class MapPage implements OnInit {
       essential: true,
     });
 
+    // update the registered data
     this.storage.set('userZonesData', this.userZonesData).then(status => {
-      console.log('status')
-      console.log(status)
+      console.log('status');
+      console.log(status);
     });
   }
   //#endregion
@@ -236,11 +255,33 @@ export class MapPage implements OnInit {
       data: this.userLocationData,
       cluster: false
     };
+  }
+  public initZonesDataSource(centerPoints: FeatureCollection<Point> = null): void {
+
+    if (centerPoints) {
+      centerPoints.features.forEach((f: Feature<Point>) => {
+
+        // Generate a circle with the Point location as center
+        const currentCircleFeature: Feature<Polygon> =
+          this.generateCircle(
+            [f.geometry.coordinates[0], f.geometry.coordinates[1]],
+            1,
+            512,
+            f.id
+          );
+
+        // Add the generated polygon to data
+        this.userZonesDataAsCircles.features.push(currentCircleFeature);
+      });
+    }
 
     this.zonesSource = {
-      data: this.userZonesData,
+      data: this.userZonesDataAsCircles,
       cluster: false
     };
+
+    console.log('this.zonesSource');
+    console.log(this.zonesSource);
   }
 
   /**
@@ -259,11 +300,11 @@ export class MapPage implements OnInit {
 
     this.zonesLayer = {
       id: 'zones',
-      type: 'circle',
+      type: 'fill',
       source: 'zones',
       paint: {
-        'circle-radius': 10,
-        'circle-color': '#B42222'
+        'fill-color': 'blue',
+        'fill-opacity': 0.6
       }
     };
   }
@@ -277,7 +318,7 @@ export class MapPage implements OnInit {
    * @param id The data source id
    * @param data The data source new dataset
    */
-  public updateSourceDataset(id: string, data: FeatureCollection<Point>): void {
+  public updateSourceDataset(id: string, data: FeatureCollection): void {
     (this.map.getSource(id) as mapboxgl.GeoJSONSource).setData(data);
   }
 
@@ -286,11 +327,20 @@ export class MapPage implements OnInit {
    * @param feature The feature to add to the dataset
    * @param dataset The dataset to add the feature in
    */
-  public addFeatureToDataset(feature: Feature<Point>, dataset: FeatureCollection<Point>): void {
+  public addFeatureToDataset(feature: Feature, dataset: FeatureCollection): void {
     dataset.features.push(feature);
     // if ( dataset.features.findIndex(element => element.id === feature.id) === -1 ) {
     //   dataset.features.push(feature);
     // }
+  }
+
+  /**
+   * Adds a data source to the map
+   * @param id The data source id
+   * @param source The data source object
+   */
+  public addSourceToMap(id: string, source: GeoJSONSource): void {
+    this.map.addSource(id, source);
   }
 
   public addLayerToMap(layer: Layer): void {
@@ -298,4 +348,48 @@ export class MapPage implements OnInit {
   }
   //#endregion
 
+  //#region Generate circle from point
+  /**
+   * Functions that create a geoJSON circle
+   * @param center array of coordinates
+   * @param radiusInKm circle radius in kilometer
+   * @param points the number of points (if 6 = hexagon)
+   * @param id identifier of the polygon
+   */
+  generateCircle(center, radiusInKm, points, id = null) {
+    if (!points) { points = 1000; }
+
+    const coords = {
+        latitude: center[1],
+        longitude: center[0]
+    };
+
+    const km = radiusInKm;
+
+    const ret = [];
+    const distanceX = km / (111.320 * Math.cos(coords.latitude * Math.PI / 180));
+    const distanceY = km / 110.574;
+
+    let theta, x, y;
+    for ( let i = 0; i < points ; i++) {
+        theta = ( i / points ) * ( 2 * Math.PI);
+        x = distanceX * Math.cos(theta);
+        y = distanceY * Math.sin(theta);
+
+        ret.push([coords.longitude + x, coords.latitude + y]);
+    }
+    ret.push(ret[0]);
+
+    const circle: Feature<Polygon> =  {
+      type: 'Feature',
+      geometry: {
+          type: 'Polygon',
+          coordinates: [ret]
+      },
+      properties: [id]
+    };
+
+    return circle;
+  }
+  ////#endregion
 }
