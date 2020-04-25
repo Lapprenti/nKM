@@ -71,6 +71,7 @@ export class MapPage implements OnInit {
   public selectedFeaturePlaceName = '';
   public featureCollectionSearchResults: FeatureCollection<Point>;
   public shouldDisplayAddresses = false;
+  public definedCircleRadius: number = null;
 
   constructor(
     private storage: Storage,
@@ -78,47 +79,55 @@ export class MapPage implements OnInit {
     private geoService: GeoService
     ) {
     // this.storage.clear();
-    this.storage.get('style').then((theme) => {
-      if (theme) {
-        if (theme === 'dark') {
-          this.service.updateMapStyle(mapDarkStyle);
-          this.service.updateTheme('dark');
-        } else {
-          this.service.updateMapStyle(mapLightStyle);
-          this.service.updateTheme('light');
-        }
-      }
-    });
-
-    // Get the user saved data or create one empty
-    this.storage.get('userZonesData').then((fc: FeatureCollection<Point>): any => {
-      if (fc) {
-        this.userZonesData = fc;
-        console.log('was userZonesData');
-        console.log(this.userZonesData);
-        this.initZonesDataSource(fc);
-      } else {
-        this.userZonesData = {
-          type: 'FeatureCollection',
-          features: []
-        };
-        console.log('userZoneData new');
-        console.log(this.userZonesData);
-        this.initZonesDataSource();
-      }
-    });
+    this.service.initStyleProperties();
   }
 
   ngOnInit() {
 
+    // get the circle radius registered in local storage from service
+    this.service.getZoneCircleRadius().subscribe((circleRadius: number) => {
+      this.definedCircleRadius = circleRadius / 1000;
+      if (this.map) {
+        const zoneLayer = this.map.getLayer('zones');
+        if (zoneLayer) {
+          this.updateSourceZonesAsCircleDataSet(this.userZonesData);
+        }
+      }
+    });
+
+    // get the style and define if it has to create or update map
     this.service.getMapStyle().subscribe( (mapStyle) => {
       if (this.map) {
         this.map.setStyle(mapStyle);
+        const zoneLayer = this.map.getLayer('zones');
+        if (zoneLayer) {
+          this.updateSourceZonesAsCircleDataSet(this.userZonesData);
+        } else {
+          console.log('ajoutDes zones')
+          this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
+          this.addLayerToMap(this.zonesLayer);
+        }
       } else {
         this.mapStyle = mapStyle;
         this.initSources();
         this.initLayers();
         this.initMap();
+      }
+    });
+
+    //  get the user location collection for zones
+    this.service.getZonesData().subscribe( (zones: FeatureCollection<Point>) => {
+      // if there is not layer on map init, else update
+      if (this.map) {
+        const zoneLayer = this.map.getLayer('zones');
+        this.userZonesData = zones;
+        if (zoneLayer) {
+          this.updateSourceZonesAsCircleDataSet(this.userZonesData);
+        } else {
+          this.initZonesDataSource(this.userZonesData);
+        }
+      } else {
+        this.initZonesDataSource(this.userZonesData);
       }
     });
   }
@@ -140,8 +149,6 @@ export class MapPage implements OnInit {
 
     this.map.on('load', () => {
       this.map.resize();
-      console.log('this.userZonesDataAsCircles');
-      console.log(this.userZonesDataAsCircles);
       this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
       this.addLayerToMap(this.zonesLayer);
     });
@@ -169,9 +176,6 @@ export class MapPage implements OnInit {
 
 
   //#region Autocomplete searched address
-  getLocationWithName(test: any) {
-    console.log(test);
-  }
 
   search(event: any) {
     const searchTerm = event.target.value.toLowerCase();
@@ -179,9 +183,7 @@ export class MapPage implements OnInit {
       this.geoService
         .searchAddressWithWordStart(searchTerm)
         .subscribe((featureCollection: FeatureCollection<Point>) => {
-          console.log(featureCollection);
           this.featureCollectionSearchResults = featureCollection;
-          console.log(this.featureCollectionSearchResults);
           if (this.featureCollectionSearchResults.features) {
             if (this.featureCollectionSearchResults.features.length > 0) {
               this.shouldDisplayAddresses = true;
@@ -194,7 +196,6 @@ export class MapPage implements OnInit {
   }
 
   onSelectProposedAddress(feature: Feature<Point>) {
-    console.log(feature);
     this.shouldDisplayAddresses = false;
     this.selectedFeature = feature;
     this.selectedFeaturePlaceName = feature.properties.place_name;
@@ -236,15 +237,11 @@ export class MapPage implements OnInit {
       essential: true,
     });
 
-    // update the registered data
-    this.storage.set('userZonesData', this.userZonesData).then(status => {
-      console.log('status');
-      console.log(status);
-    });
+    this.service.updateZonesData(this.userZonesData);
   }
   //#endregion
 
-  //#region map Data
+  //#region map Data init
 
 
   /**
@@ -265,7 +262,7 @@ export class MapPage implements OnInit {
         const currentCircleFeature: Feature<Polygon> =
           this.generateCircle(
             [f.geometry.coordinates[0], f.geometry.coordinates[1]],
-            1,
+            this.definedCircleRadius,
             512,
             f.id
           );
@@ -279,9 +276,6 @@ export class MapPage implements OnInit {
       data: this.userZonesDataAsCircles,
       cluster: false
     };
-
-    console.log('this.zonesSource');
-    console.log(this.zonesSource);
   }
 
   /**
@@ -304,7 +298,7 @@ export class MapPage implements OnInit {
       source: 'zones',
       paint: {
         'fill-color': 'blue',
-        'fill-opacity': 0.6
+        'fill-opacity': 0.1
       }
     };
   }
@@ -348,7 +342,32 @@ export class MapPage implements OnInit {
   }
   //#endregion
 
-  //#region Generate circle from point
+  //#region Generate circles
+
+  /**
+   * Recreate all circle from scratch with center points and update source dataset
+   * @param centerPoints the center points to use for update
+   */
+  updateSourceZonesAsCircleDataSet(centerPoints: FeatureCollection<Point>) {
+    this.userZonesDataAsCircles.features = [];
+    centerPoints.features.forEach((f: Feature<Point>) => {
+
+      // Generate a circle with the Point location as center
+      const currentCircleFeature: Feature<Polygon> =
+        this.generateCircle(
+          [f.geometry.coordinates[0], f.geometry.coordinates[1]],
+          this.definedCircleRadius,
+          512,
+          f.id
+        );
+
+      // Add the generated polygon to data
+      this.userZonesDataAsCircles.features.push(currentCircleFeature);
+    });
+
+    this.updateSourceDataset('zones', this.userZonesDataAsCircles);
+  }
+
   /**
    * Functions that create a geoJSON circle
    * @param center array of coordinates
@@ -391,5 +410,5 @@ export class MapPage implements OnInit {
 
     return circle;
   }
-  ////#endregion
+  // #endregion
 }

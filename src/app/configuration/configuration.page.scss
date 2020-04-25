@@ -1,0 +1,23 @@
+ion-grid {
+  height: 100%;
+
+  ion-row{
+    height: calc((100%) / 5);
+    align-items: center;
+    justify-content: center;
+  }
+}
+
+div.align{
+  width: 100%;
+  text-align: center;
+}
+
+ion-icon{
+  width: 25px;
+  height: 25px;
+}
+
+ion-input{
+  font-size: 1.5em;
+}

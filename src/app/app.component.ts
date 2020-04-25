@@ -25,7 +25,11 @@ export class AppComponent {
     public modalController: ModalController
   ) {
     this.initializeApp();
-    // this.storage.clear();
+
+    /**
+     * Get the legal acceptation in local storage
+     * Show the acceptation modal while the user did not accepted
+     */
     this.storage.get('cgu_accept').then((accepted) => {
 
       // The legal part is not already agreed or not exists

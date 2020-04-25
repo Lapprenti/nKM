@@ -1,22 +1,77 @@
 <ion-header>
-  <ion-toolbar>
-    <ion-title>Configuration</ion-title>
+  <ion-toolbar >
+    <ion-title class="ion-text-center">Configuration</ion-title>
   </ion-toolbar>
 </ion-header>
 
 <ion-content>
-  <ion-list>
-    <ion-item>
-      <ion-icon slot="start" name="moon-outline"></ion-icon>
-      <ion-label>
-        Mode sombre
-      </ion-label>
-      <!-- checked=""-->
-      <ion-toggle (ionChange)="changeTheme($event)" slot="end" checked="{{isDarkTheme}}"></ion-toggle>
-    </ion-item>
-    <ion-item>
-      <ion-button color="danger" (click)="removeAllData()">Supprimer les données</ion-button>
-    </ion-item>
-  </ion-list>
+  <ion-grid>
+    <!-- One empty row  -->
+    <!-- <ion-row></ion-row> -->
+
+    <!-- Row for dark mode setting -->
+    <ion-row>
+      <ion-col size=2>
+        <div class="align">
+          <ion-icon slot="start" name="moon-outline"></ion-icon>
+        </div>
+      </ion-col>
+
+      <ion-col size=8>
+        <div class="align">
+          <h4>Mode sombre</h4>
+        </div>
+      </ion-col>
+
+      <ion-col size=2>
+        <div class="align">
+          <ion-toggle (ionChange)="changeTheme($event)" slot="end" checked="{{isDarkTheme}}"></ion-toggle>
+        </div>
+      </ion-col>
+    </ion-row>
+    
+    <!-- row for area radius -->
+    <ion-row>
+      <ion-col size=2>
+        <div class="align">
+          <ion-icon name="resize-sharp"></ion-icon>
+        </div>
+      </ion-col>
+
+      <ion-col size=8>
+        <div class="align">
+          Rayon du cercle en mètres :
+          <ion-input value="{{this.circleRadius}}" type="tel" inputmode="numeric" 
+          (ionChange)="setRadiusValues($event)"
+          (click)='resetButtonSaveStyle()'></ion-input>
+        </div>
+      </ion-col>
+
+      <ion-col size=2>
+        <div class="align">
+          <ion-button disabled="{{this.btnSaveDisabled}}" color="{{btnSaveColor}}" slot="end" (click)="setRadiusCircles()">
+            <ion-icon name="{{btnSaveIcon}}"></ion-icon>
+          </ion-button>
+        </div>
+      </ion-col>
+    </ion-row>
+
+    <!-- One empty row  -->
+    <ion-row></ion-row>
+
+    <ion-row>
+      <ion-col>
+        <div class="align">
+          <ion-button disabled="{{this.btnDeleteShouldBeDisabled}}" color="{{this.btnDeleteDataColor}}" (click)="removeAllData()">{{this.btnDeleteDataContent}}</ion-button>
+        </div>
+      </ion-col>
+      <ion-col>
+        <div class="align">
+          <!-- (click)="goToLegalPage()" -->
+          <ion-button color="secondary">Voir les mentions légales</ion-button>
+        </div>
+      </ion-col>
+    </ion-row>
+  </ion-grid>
     
 </ion-content>
