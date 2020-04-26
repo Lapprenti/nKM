@@ -1,3 +1,4 @@
+import { Subject, Observable } from 'rxjs';
 import { GeoService } from './../geo.service';
 import { Storage } from '@ionic/storage';
 import { SharedService } from './../shared.service';
@@ -39,6 +40,8 @@ export class MapPage implements OnInit {
   // Map declarations
   private mapStyle: string;
   public map: Map;
+  public isMapNotLoaded = true;
+  public isMapLoaded = new Subject<boolean>();
 
   // Source data for map layers
   public userZonesData: FeatureCollection<Point>;
@@ -80,6 +83,19 @@ export class MapPage implements OnInit {
     ) {
     // this.storage.clear();
     this.service.initStyleProperties();
+
+    this.GetIsMapLoaded().subscribe((isLoaded) => {
+      this.isMapNotLoaded = false;
+
+      /**
+       * wait the map container to be sized as wanted and then resize
+       * this trigger to early : "this.map.resize();"
+       * but this is working ↓ (it wait still more than one line)
+       */
+      setTimeout(() => {
+        this.map.resize();
+      }, 0);
+    });
   }
 
   ngOnInit() {
@@ -104,7 +120,6 @@ export class MapPage implements OnInit {
         if (zoneLayer) {
           this.updateSourceZonesAsCircleDataSet(this.userZonesData);
         } else {
-          console.log('ajoutDes zones')
           this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
           this.addLayerToMap(this.zonesLayer);
         }
@@ -148,10 +163,10 @@ export class MapPage implements OnInit {
       accessToken: mapBoxAccessToken
     });
 
-    // when the map is loading resize to full screen
-    this.map.on('load', () => {
-      this.map.resize();
-    });
+    // // when the map is loading resize to full screen
+    // this.map.on('load', () => {
+    //   this.map.resize();
+    // });
 
     // triggered when the map style change (re add the missing layer if not exists)
     this.map.on('styledata', (status) => {
@@ -164,6 +179,20 @@ export class MapPage implements OnInit {
       } catch (error) {
         console.log(error);
       }
+    });
+
+    this.map.on('idle', () => {
+      console.log('idle event');
+      if (this.map.areTilesLoaded() && this.map.isStyleLoaded() && this.isMapNotLoaded) {
+        // update the property
+        this.isMapNotLoaded = false;
+        this.isMapLoaded.next(true);
+      }
+    });
+
+    this.map.on('load', () => {
+      // console.log('load event');
+      // this.map.resize();
     });
 
 
@@ -348,6 +377,10 @@ export class MapPage implements OnInit {
   //#endregion
 
   //#region Map Logic
+
+  GetIsMapLoaded(): Observable<boolean> {
+    return this.isMapLoaded.asObservable();
+  }
 
   /**
    * Updates a map data source dataset
