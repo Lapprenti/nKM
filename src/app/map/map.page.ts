@@ -1,9 +1,11 @@
+import { mapBoxAccessToken } from './../../environments/environment';
 import { Subject, Observable } from 'rxjs';
+
 import { GeoService } from './../geo.service';
-import { Storage } from '@ionic/storage';
 import { SharedService } from './../shared.service';
-import { mapBoxAccessToken, mapLightStyle, mapDarkStyle } from './../../environments/environment';
 import { Component, OnInit } from '@angular/core';
+
+import { Geolocation } from '@ionic-native/geolocation/ngx';
 
 /** Map utilities imports */
 import {
@@ -18,6 +20,11 @@ import {
   GeoJSONSourceOptions,
   GeoJSONSource
 } from 'mapbox-gl';
+
+interface DynamicLocation {
+  lat : number;
+  lng : number;
+}
 
 @Component({
   selector: 'app-map',
@@ -66,8 +73,10 @@ export class MapPage implements OnInit {
   public following: boolean;
 
   // User location
-  private currentLng = 5.046429;
-  private currentLat = 47.341877;
+  private currentLng: number;
+  private currentLat: number;
+  public currentSpeed: number;
+  public dynamicLocation = new Subject<DynamicLocation>();
 
   // Autocomplete properties init
   public selectedFeature: Feature = null;
@@ -77,10 +86,43 @@ export class MapPage implements OnInit {
   public definedCircleRadius: number = null;
 
   constructor(
-    private storage: Storage,
     private service: SharedService,
-    private geoService: GeoService
+    private geoService: GeoService,
+    private geolocation: Geolocation
     ) {
+
+    this.getGeolocation().subscribe((dL:DynamicLocation) => {
+      console.log(dL)
+      // Add the user location feature
+      const userFeature: Feature<Point> = {
+        id: 'user',
+        type: 'Feature',
+        properties: [],
+        geometry: {
+          type: 'Point',
+          coordinates: [dL.lng, dL.lat]
+        }
+      }
+      this.addFeatureToDataset(userFeature, this.userLocationData);
+
+      if (this.map) {
+
+        console.log('Une map existe')
+        this.updateMapPosition(dL.lng, dL.lat);
+        this.updateUserPosition(dL.lng, dL.lat);
+
+      } else {
+
+        console.log('nouvelle map')
+        this.currentLng = dL.lng;
+        this.currentLat = dL.lat;
+
+        
+
+        this.initMap()
+      }
+    })
+
     // this.storage.clear();
     this.service.initStyleProperties();
 
@@ -113,21 +155,24 @@ export class MapPage implements OnInit {
 
     // get the style and define if it has to create or update map
     this.service.getMapStyle().subscribe( (mapStyle) => {
-      
+
       if (this.map) {
         this.map.setStyle(mapStyle);
         const zoneLayer = this.map.getLayer('zones');
         if (zoneLayer) {
           this.updateSourceZonesAsCircleDataSet(this.userZonesData);
         } else {
+          this.map.addSource('user', { type: 'geojson', ...this.userSource });
           this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
+
+          this.addLayerToMap(this.userLayer);
           this.addLayerToMap(this.zonesLayer);
         }
       } else {
+        
         this.mapStyle = mapStyle;
         this.initSources();
         this.initLayers();
-        this.initMap();
       }
     });
 
@@ -157,16 +202,15 @@ export class MapPage implements OnInit {
       style: this.mapStyle,
       zoom: MapPage._DEFAULT_ZOOM,
       maxZoom: MapPage._MAX_ZOOM_ALLOWED,
-      center: [5.041960, 47.322197],
+      center: [this.currentLng, this.currentLat],
       pitch: MapPage._DEFAULT_PITCH,
       bearing: MapPage._DEFAULT_BEARING,
       accessToken: mapBoxAccessToken
     });
 
-    // // when the map is loading resize to full screen
-    // this.map.on('load', () => {
-    //   this.map.resize();
-    // });
+    this.map.on('load', () => {
+      this.addUserAnimatedIcon()
+    });
 
     // triggered when the map style change (re add the missing layer if not exists)
     this.map.on('styledata', (status) => {
@@ -175,6 +219,12 @@ export class MapPage implements OnInit {
         if (!zoneLayer) {
           this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
           this.addLayerToMap(this.zonesLayer);
+        }
+        console.log(this.userSource)
+        const userLayer = this.map.getLayer('user');
+        if (!userLayer) {
+          this.map.addSource('user', { type: 'geojson', ...this.userSource });
+          this.addLayerToMap(this.userLayer);
         }
       } catch (error) {
         console.log(error);
@@ -188,12 +238,10 @@ export class MapPage implements OnInit {
         this.isMapNotLoaded = false;
         this.isMapLoaded.next(true);
       }
+      this.map.triggerRepaint();
     });
 
-    this.map.on('load', () => {
-      // console.log('load event');
-      // this.map.resize();
-    });
+    
 
 
   }
@@ -215,6 +263,81 @@ export class MapPage implements OnInit {
     });
     setTimeout(() => this.following = true, MapPage._FLY_TO_CURRENT_POSITION_DURATION);
   }
+
+  //#region user location management
+
+  /**
+   * Initializes the current coordinates and sets the coordinates update
+   */
+  public getGeolocation(): Observable<DynamicLocation> {
+    this.geolocation.getCurrentPosition({ enableHighAccuracy: true })
+        .then(
+          (currentGeoLocation) => {
+            this.currentLat = currentGeoLocation.coords.latitude;
+            this.currentLng = currentGeoLocation.coords.longitude;
+            this.currentSpeed = currentGeoLocation.coords.speed;
+
+            // Update the value of dynamic location
+            const dL: DynamicLocation = {
+              'lat' : currentGeoLocation.coords.latitude,
+              'lng' : currentGeoLocation.coords.longitude
+            }
+            this.dynamicLocation.next(dL)
+
+            this.geolocation.watchPosition().subscribe(
+              (dynamicGeoposition) => {
+                console.log('dynamicGeoposition');
+                console.log(dynamicGeoposition);
+
+                const dL: DynamicLocation = {
+                  'lat' : currentGeoLocation.coords.latitude,
+                  'lng' : currentGeoLocation.coords.longitude
+                }
+                this.dynamicLocation.next(dL)
+
+                this.currentSpeed = dynamicGeoposition.coords.speed;
+
+                // this.updateMapPosition(this.currentLng, this.currentLat);
+                // this.updateUserPosition(this.currentLng, this.currentLat);
+              }, ( error ) => { console.log(error); }
+            );
+          });
+    return this.dynamicLocation.asObservable();
+  }
+
+  /**
+   * Fires events when the map is touched
+   */
+  public listenToMapTouch(): void {
+    this.map.on('touchstart', () => {
+      this.following = false;
+    });
+  }
+
+  /**
+   * Updates the map position to new coordinates
+   * @param lng The new map center longitude
+   * @param lat The new map center latitude
+   */
+  public updateMapPosition(lng: number, lat: number): void {
+    if ( this.following ) {
+      this.map.setCenter([lng, lat]);
+    }
+  }
+
+  /**
+   * Updates the user position to new coordinates
+   * @param lng The new user position longitude
+   * @param lat The new user position latitude
+   */
+  public updateUserPosition(lng: number, lat: number): void {
+    if ( this.userLocationData.features[0] ) {
+      this.userLocationData.features[0].geometry.coordinates = [lng, lat];
+      this.updateSourceDataset('user', this.userLocationData);
+    }
+  }
+
+  //#endregion
 
 
   //#region Autocomplete searched address
@@ -314,6 +437,81 @@ export class MapPage implements OnInit {
 
   //#region map Data init
 
+  addUserAnimatedIcon(){
+
+    console.log('adding user animated icon')
+    const width = 75
+
+    var pulsingDot = {
+      width: width,
+      height: width,
+      data: new Uint8Array(width * width * 4),
+       
+      // get rendering context for the map canvas when layer is added to the map
+      onAdd: function() {
+        var canvas = document.createElement('canvas');
+        canvas.width = this.width;
+        canvas.height = this.height;
+        this.context = canvas.getContext('2d');
+      },
+       
+      // called once before every frame where the icon will be used
+      render: function() {
+        var duration = 1000;
+        var t = (performance.now() % duration) / duration;
+        
+        var radius = (width / 2) * 0.3;
+        var outerRadius = (width / 2) * 0.7 * t + radius;
+        var context = this.context;
+        
+        // draw outer circle
+        context.clearRect(0, 0, this.width, this.height);
+        context.beginPath();
+        context.arc(
+        this.width / 2,
+        this.height / 2,
+        outerRadius,
+        0,
+        Math.PI * 2
+      );
+      context.fillStyle = 'rgba(255, 200, 200,' + (1 - t) + ')';
+      context.fill();
+       
+      // draw inner circle
+      context.beginPath();
+      context.arc(
+      this.width / 2,
+      this.height / 2,
+      radius,
+      0,
+      Math.PI * 2
+      );
+      context.fillStyle = 'rgba(255, 100, 100, 1)';
+      context.strokeStyle = 'white';
+      context.lineWidth = 2 + 4 * (1 - t);
+      context.fill();
+      context.stroke();
+       
+      // update this image's data with data from the canvas
+      this.data = context.getImageData(
+        0,
+        0,
+        width,
+        width
+      ).data;
+       
+      // continuously repaint the map, resulting in the smooth animation of the dot
+      // this.map.triggerRepaint();
+      // this.map.triggerRepaint();
+       
+      // return `true` to let the map know that the image was updated
+      return true;
+    }}
+
+    this.map.addImage('pulsing-dot', pulsingDot, { pixelRatio: 2 });
+
+  }
+  
 
   /**
    * Initializes the map data sources
@@ -358,8 +556,8 @@ export class MapPage implements OnInit {
       type: 'symbol',
       source: 'user',
       layout: {
-        'icon-image': 'user',
-        'icon-size': 0.05
+        'icon-image': 'pulsing-dot',
+        //'icon-size': 0.05
       }
     };
 
