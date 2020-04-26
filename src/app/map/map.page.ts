@@ -198,26 +198,55 @@ export class MapPage implements OnInit {
   onSelectProposedAddress(feature: Feature<Point>) {
     this.shouldDisplayAddresses = false;
     this.selectedFeature = feature;
-    this.selectedFeaturePlaceName = feature.properties.place_name;
+
+    /**
+     * Feature returned by the mapbox api places does to fit with Feature<Point> specificities
+     * Have to force acces via string literal causing lint warning
+     * "object access via string literals is disallowed"
+     */
+    this.selectedFeaturePlaceName = feature['place_name_fr'];
 
     const featureId = feature.id;
     const featureType = feature.type;
-    // const featureFrenchName: string = feature.properties.place_name_fr;
     const featureGeometry = feature.geometry;
 
+    // Handle if the feature is already in the dataset
+    for (const circleCenterFeature of this.userZonesData.features) {
+      if (circleCenterFeature.properties[0] === this.selectedFeaturePlaceName) {
+
+        // Fly to the existing feature
+        this.map.flyTo({
+          center: [feature.geometry.coordinates[0], feature.geometry.coordinates[1]],
+          zoom: MapPage._DEFAULT_ZOOM,
+          bearing: MapPage._DEFAULT_BEARING,
+          duration: MapPage._FLY_TO_CURRENT_POSITION_DURATION,
+          speed: 1,
+          curve: 1,
+          easing: (t) => t,
+          essential: true,
+        });
+
+        return;
+      }
+    }
+
+    // Generate one feature to save in db (the center of the circle)
     const featureToSave: Feature<Point> = {
       id: featureId,
       type: featureType,
       properties: [
+        this.selectedFeaturePlaceName
       ],
       geometry: featureGeometry
     };
 
+    // Generate one feature to draw on the map with radius taken from user setting associated
     const featureToDraw = this.generateCircle(
       [featureGeometry.coordinates[0], featureGeometry.coordinates[1]],
       1,
       512,
-      featureId
+      featureId,
+      this.selectedFeaturePlaceName
     );
 
     // data sets updates
@@ -375,7 +404,7 @@ export class MapPage implements OnInit {
    * @param points the number of points (if 6 = hexagon)
    * @param id identifier of the polygon
    */
-  generateCircle(center, radiusInKm, points, id = null) {
+  generateCircle(center, radiusInKm, points, id = null, name = null) {
     if (!points) { points = 1000; }
 
     const coords = {
@@ -405,7 +434,7 @@ export class MapPage implements OnInit {
           type: 'Polygon',
           coordinates: [ret]
       },
-      properties: [id]
+      properties: [id, name]
     };
 
     return circle;
