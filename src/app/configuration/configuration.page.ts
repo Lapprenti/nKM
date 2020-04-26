@@ -2,8 +2,6 @@ import { SharedService } from './../shared.service';
 import { Component, OnInit } from '@angular/core';
 import { mapDarkStyle, mapLightStyle } from 'src/environments/environment';
 
-import { Storage } from '@ionic/storage';
-
 @Component({
   selector: 'app-configuration',
   templateUrl: './configuration.page.html',
@@ -23,17 +21,19 @@ export class ConfigurationPage implements OnInit {
   public btnDeleteDataContent = 'Supprimer les données';
   public btnDeleteClicked = false;
 
-  constructor(private service: SharedService, private storage: Storage) {
-    storage.get('style').then((theme) => {
-      if (theme) {
-        if (theme === 'dark') {
-          this.isDarkTheme = true;
-        } else {
-          this.isDarkTheme = false;
-        }
+  constructor(private service: SharedService) {
+    service.initStyleProperties();
+    service.getTheme().subscribe((theme) => {
+      if (theme === 'dark') {
+        this.isDarkTheme = true;
+      } else {
+        this.isDarkTheme = false;
       }
     });
 
+    /**
+     * Subscribe to circle radius property in database
+     */
     this.service.getZoneCircleRadius().subscribe((circleRadius) => {
 
       // if it is the first load of the page, the circle value should be null
@@ -43,25 +43,31 @@ export class ConfigurationPage implements OnInit {
         this.circleRadiusLastSavedValue = circleRadius;
         this.circleRadius = circleRadius;
         this.btnSaveDisabled = true;
+
       } else {
 
         this.circleRadiusLastSavedValue = this.circleRadius;
         this.circleRadius = circleRadius;
 
         if (circleRadius === this.circleRadiusLastSavedValue) {
+
           this.btnSaveDisabled = true;
           if (!this.btnDeleteShouldBeDisabled) {
+
             this.btnSaveColor = 'success';
             this.btnSaveIcon = 'checkmark-done-sharp';
           }
           if (this.btnDeleteShouldBeDisabled) {
+
             if (this.circleRadius !== 1000) {
+
               this.btnSaveColor = 'success';
               this.btnSaveIcon = 'checkmark-done-sharp';
               this.btnDeleteShouldBeDisabled = false;
               this.btnDeleteDataColor = 'danger';
               this.btnDeleteDataContent = 'Supprimer les données';
             } else {
+
               this.resetButtonSaveStyle();
               this.btnSaveDisabled = true;
             }
@@ -82,6 +88,7 @@ export class ConfigurationPage implements OnInit {
      */
     const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
 
+    // A tester sur iPhone avec environnment dark et light
     systemDark.addEventListener('change', (systemInitiatedDark) => {
       if (systemInitiatedDark.matches) {
         document.body.setAttribute('data-theme', 'dark');
@@ -94,23 +101,17 @@ export class ConfigurationPage implements OnInit {
 
       // update the value threw common service (siblings components)
       this.service.updateMapStyle(mapDarkStyle);
+      this.service.updateTheme('dark');
 
-      // update the theme on the local storage
-      this.storage.set('style', 'dark');
-
-      // set the global theme for the app (all except map)
-      document.body.setAttribute('data-theme', 'dark');
+      // enable the delete all data button
+      this.resetButtonDeleteStyle();
+      this.btnDeleteShouldBeDisabled = false;
 
     } else {
 
       // update the value threw common service (siblings components)
       this.service.updateMapStyle(mapLightStyle);
-
-      // update the theme on the local storage
-      this.storage.set('style', 'light');
-
-      // set the global theme for the app (all except map)
-      document.body.setAttribute('data-theme', 'light');
+      this.service.updateTheme('light');
     }
   }
 
@@ -119,8 +120,17 @@ export class ConfigurationPage implements OnInit {
     this.btnSaveIcon = 'save-outline';
   }
 
+  resetButtonDeleteStyle() {
+    this.btnDeleteDataColor = 'danger';
+    this.btnDeleteDataContent = 'Supprimer les données';
+  }
+
   setRadiusValues(event: any) {
-    this.circleRadius = event.detail.value;
+
+    // need to cast for the condition as the number is on string values
+    this.circleRadius = Number(event.detail.value);
+
+    // the circle radius and the the last saved value are equal, the save button is disabled
     if (this.circleRadiusLastSavedValue === this.circleRadius) {
       this.btnSaveDisabled = true;
     } else {
@@ -133,15 +143,15 @@ export class ConfigurationPage implements OnInit {
   }
 
   removeAllData() {
+    this.btnDeleteShouldBeDisabled = true;
+    this.btnDeleteDataColor = 'light';
+    this.btnDeleteDataContent = 'Données supprimées';
+    this.isDarkTheme = false;
 
     // remove all map data and so
-    this.btnDeleteShouldBeDisabled = true;
     this.circleRadius = 1000;
     this.service.resetCircleRadius();
     this.service.deleteZonesData();
-
-    this.btnDeleteDataColor = 'light';
-    this.btnDeleteDataContent = 'Données supprimées';
   }
 
 }

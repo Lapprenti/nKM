@@ -40,19 +40,10 @@ export class AppComponent {
     });
 
     /**
-     * Get the style property in local storage
+     * Get the style property in local storage threw service
      * If it does not exists create the key and link light by default (first launch)
      */
-    this.storage.get('style').then((theme) => {
-      console.log(theme);
-      if (theme) {
-        document.body.setAttribute('data-theme', theme);
-      } else {
-
-        // if first launch insert light theme
-        this.storage.set('style', 'light');
-      }
-    });
+    this.service.initStyleProperties();
   }
 
   initializeApp() {

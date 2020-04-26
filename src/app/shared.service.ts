@@ -30,6 +30,12 @@ export class SharedService {
           this.updateMapStyle(mapLightStyle);
           this.updateTheme('light');
         }
+      } else {
+
+        // if first launch insert light theme
+        this.storage.set('style', 'light');
+        this.updateMapStyle(mapLightStyle);
+        this.updateTheme('light');
       }
     });
   }
@@ -39,6 +45,14 @@ export class SharedService {
   }
 
   updateTheme(t: string) {
+
+    // set the global theme for the app
+    document.body.setAttribute('data-theme', t);
+
+    // update the theme on the local storage
+    this.storage.set('style', t);
+
+    // update the property
     this.theme.next(t);
   }
 
