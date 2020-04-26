@@ -97,6 +97,7 @@ export class MapPage implements OnInit {
 
     // get the style and define if it has to create or update map
     this.service.getMapStyle().subscribe( (mapStyle) => {
+      
       if (this.map) {
         this.map.setStyle(mapStyle);
         const zoneLayer = this.map.getLayer('zones');
@@ -147,10 +148,22 @@ export class MapPage implements OnInit {
       accessToken: mapBoxAccessToken
     });
 
+    // when the map is loading resize to full screen
     this.map.on('load', () => {
       this.map.resize();
-      this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
-      this.addLayerToMap(this.zonesLayer);
+    });
+
+    // triggered when the map style change (re add the missing layer if not exists)
+    this.map.on('styledata', (status) => {
+      try {
+        const zoneLayer = this.map.getLayer('zones');
+        if (!zoneLayer) {
+          this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
+          this.addLayerToMap(this.zonesLayer);
+        }
+      } catch (error) {
+        console.log(error);
+      }
     });
 
 
