@@ -94,16 +94,20 @@ export class MapPage implements OnInit {
     this.getGeolocation().subscribe((dL:DynamicLocation) => {
       console.log(dL)
       // Add the user location feature
-      const userFeature: Feature<Point> = {
-        id: 'user',
-        type: 'Feature',
-        properties: [],
-        geometry: {
-          type: 'Point',
-          coordinates: [dL.lng, dL.lat]
+      if(this.userLocationData.features.length === 0){
+        const userFeature: Feature<Point> = {
+          id: 'user',
+          type: 'Feature',
+          properties: [],
+          geometry: {
+            type: 'Point',
+            coordinates: [dL.lng, dL.lat]
+          }
         }
+        this.addFeatureToDataset(userFeature, this.userLocationData);
       }
-      this.addFeatureToDataset(userFeature, this.userLocationData);
+
+      
 
       if (this.map) {
 
