@@ -66,6 +66,8 @@ export class SharedService {
 
   getZoneCircleRadius(): Observable<number> {
     this.storage.get('circleRadius').then((circleRadius) => {
+      console.log('circle radius');
+      console.log(circleRadius);
       if (circleRadius) {
         this.updateZoneCircleRadius(circleRadius);
       } else {
@@ -73,7 +75,7 @@ export class SharedService {
         // first launch default circle radius
         this.storage.set('circleRadius', 1000);
       }
-    });
+    }).catch((error) => console.log('An error happened getting the saved circle radius → ' + error));
     return this.zoneCircleRadius.asObservable();
   }
 
@@ -99,13 +101,13 @@ export class SharedService {
       if (zones) {
         this.zonesData.next(zones);
       } else {
-        // init an empty featurecollection
+        // init an empty feature collection
         this.zonesData.next({
           type: 'FeatureCollection',
           features: []
         });
       }
-    });
+    }).catch((error) => console.log('An error happened getting all center of circles → ' + error));
     return this.zonesData.asObservable();
   }
 

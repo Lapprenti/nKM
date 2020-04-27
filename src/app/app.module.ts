@@ -1,4 +1,4 @@
-import { LaunchModalPage } from './launch-modal/launch-modal.page';
+import { LaunchModalPageModule } from './launch-modal/launch-modal.module';
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
 
@@ -19,15 +19,16 @@ import { ServiceWorkerModule } from '@angular/service-worker';
 import { environment } from '../environments/environment';
 
 @NgModule({
-  declarations: [AppComponent, LaunchModalPage],
-  entryComponents: [LaunchModalPage],
+  declarations: [AppComponent],
+  entryComponents: [],
   imports: [
     HttpClientModule,
     BrowserModule,
     IonicModule.forRoot(),
     AppRoutingModule,
     IonicStorageModule.forRoot(),
-    ServiceWorkerModule.register('ngsw-worker.js', { enabled: environment.production })
+    ServiceWorkerModule.register('ngsw-worker.js', { enabled: environment.production }),
+    LaunchModalPageModule
   ],
   providers: [
     StatusBar,

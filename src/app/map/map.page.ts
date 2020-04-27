@@ -91,10 +91,10 @@ export class MapPage implements OnInit {
     private geolocation: Geolocation
     ) {
 
-    this.getGeolocation().subscribe((dL:DynamicLocation) => {
-      console.log(dL)
+    this.getGeolocation().subscribe((dL: DynamicLocation) => {
+      // console.log(dL);
       // Add the user location feature
-      if(this.userLocationData.features.length === 0){
+      if (this.userLocationData.features.length === 0) {
         const userFeature: Feature<Point> = {
           id: 'user',
           type: 'Feature',
@@ -103,29 +103,25 @@ export class MapPage implements OnInit {
             type: 'Point',
             coordinates: [dL.lng, dL.lat]
           }
-        }
+        };
         this.addFeatureToDataset(userFeature, this.userLocationData);
       }
 
-      
-
       if (this.map) {
 
-        console.log('Une map existe')
+        // console.log('Une map existe');
         this.updateMapPosition(dL.lng, dL.lat);
         this.updateUserPosition(dL.lng, dL.lat);
 
       } else {
 
-        console.log('nouvelle map')
+        // console.log('nouvelle map');
         this.currentLng = dL.lng;
         this.currentLat = dL.lat;
 
-        
-
-        this.initMap()
+        this.initMap();
       }
-    })
+    });
 
     // this.storage.clear();
     this.service.initStyleProperties();
@@ -161,19 +157,29 @@ export class MapPage implements OnInit {
     this.service.getMapStyle().subscribe( (mapStyle) => {
 
       if (this.map) {
+        // console.log('reglage style')
         this.map.setStyle(mapStyle);
         const zoneLayer = this.map.getLayer('zones');
         if (zoneLayer) {
           this.updateSourceZonesAsCircleDataSet(this.userZonesData);
         } else {
-          this.map.addSource('user', { type: 'geojson', ...this.userSource });
           this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
-
-          this.addLayerToMap(this.userLayer);
           this.addLayerToMap(this.zonesLayer);
         }
-      } else {
+        //const userLayer = this.map.getLayer('user');
         
+        // this.updateSourceDataset('user', this.userLocationData);
+        // console.log(userLayer)
+        // if (userLayer) {
+        //   console.log(userLayer)
+          
+        // } else {
+        //   this.map.addSource('user', { type: 'geojson', ...this.userSource });
+
+        //   this.addLayerToMap(this.userLayer);
+        // }
+      } else {
+
         this.mapStyle = mapStyle;
         this.initSources();
         this.initLayers();
@@ -182,17 +188,24 @@ export class MapPage implements OnInit {
 
     //  get the user location collection for zones
     this.service.getZonesData().subscribe( (zones: FeatureCollection<Point>) => {
+
+      // update the user zones data
+      this.userZonesData = zones;
+
       // if there is not layer on map init, else update
       if (this.map) {
         const zoneLayer = this.map.getLayer('zones');
-        this.userZonesData = zones;
         if (zoneLayer) {
           this.updateSourceZonesAsCircleDataSet(this.userZonesData);
         } else {
+          // console.log('init les zones');
+          // console.log(zones);
           this.initZonesDataSource(this.userZonesData);
         }
       } else {
         this.initZonesDataSource(this.userZonesData);
+        // console.log('init les zones');
+        // console.log(zones);
       }
     });
   }
@@ -213,30 +226,37 @@ export class MapPage implements OnInit {
     });
 
     this.map.on('load', () => {
-      this.addUserAnimatedIcon()
+      this.addUserAnimatedIcon();
+      console.log('load');
     });
 
     // triggered when the map style change (re add the missing layer if not exists)
     this.map.on('styledata', (status) => {
+      console.log('styledata');
       try {
         const zoneLayer = this.map.getLayer('zones');
         if (!zoneLayer) {
           this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
           this.addLayerToMap(this.zonesLayer);
         }
-        console.log(this.userSource)
+        // console.log(this.userSource)
         const userLayer = this.map.getLayer('user');
+
         if (!userLayer) {
+          if (!this.map.hasImage('pulsing-dot')) {
+            this.addUserAnimatedIcon();
+          }
+
           this.map.addSource('user', { type: 'geojson', ...this.userSource });
           this.addLayerToMap(this.userLayer);
         }
       } catch (error) {
-        console.log(error);
+        // console.log(error);
       }
     });
 
     this.map.on('idle', () => {
-      console.log('idle event');
+      // console.log('idle event');
       if (this.map.areTilesLoaded() && this.map.isStyleLoaded() && this.isMapNotLoaded) {
         // update the property
         this.isMapNotLoaded = false;
@@ -245,7 +265,11 @@ export class MapPage implements OnInit {
       this.map.triggerRepaint();
     });
 
-    
+    // this.map.on('touchstart', () => {
+    //   console.log('touched')
+    //   this.following = false;
+    // });
+    this.listenToMapTouch();
 
 
   }
@@ -290,8 +314,8 @@ export class MapPage implements OnInit {
 
             this.geolocation.watchPosition().subscribe(
               (dynamicGeoposition) => {
-                console.log('dynamicGeoposition');
-                console.log(dynamicGeoposition);
+                // console.log('dynamicGeoposition');
+                // console.log(dynamicGeoposition);
 
                 const dL: DynamicLocation = {
                   'lat' : currentGeoLocation.coords.latitude,
@@ -314,6 +338,7 @@ export class MapPage implements OnInit {
    */
   public listenToMapTouch(): void {
     this.map.on('touchstart', () => {
+      console.log('touched')
       this.following = false;
     });
   }
@@ -324,6 +349,7 @@ export class MapPage implements OnInit {
    * @param lat The new map center latitude
    */
   public updateMapPosition(lng: number, lat: number): void {
+    // console.log('this.updateMapPosition')
     if ( this.following ) {
       this.map.setCenter([lng, lat]);
     }
@@ -335,6 +361,7 @@ export class MapPage implements OnInit {
    * @param lat The new user position latitude
    */
   public updateUserPosition(lng: number, lat: number): void {
+    // console.log('this.updateUserPosition')
     if ( this.userLocationData.features[0] ) {
       this.userLocationData.features[0].geometry.coordinates = [lng, lat];
       this.updateSourceDataset('user', this.userLocationData);
@@ -378,6 +405,8 @@ export class MapPage implements OnInit {
     const featureId = feature.id;
     const featureType = feature.type;
     const featureGeometry = feature.geometry;
+
+    // console.log(this.userZonesData)
 
     // Handle if the feature is already in the dataset
     for (const circleCenterFeature of this.userZonesData.features) {
@@ -443,7 +472,7 @@ export class MapPage implements OnInit {
 
   addUserAnimatedIcon(){
 
-    console.log('adding user animated icon')
+    // console.log('adding user animated icon')
     const width = 75
 
     var pulsingDot = {
@@ -497,11 +526,12 @@ export class MapPage implements OnInit {
       context.stroke();
        
       // update this image's data with data from the canvas
-      this.data = context.getImageData(
-        0,
-        0,
-        width,
-        width
+      this.data = 
+      context.getImageData(
+      0,
+      0,
+      width,
+      width
       ).data;
        
       // continuously repaint the map, resulting in the smooth animation of the dot
@@ -510,7 +540,7 @@ export class MapPage implements OnInit {
        
       // return `true` to let the map know that the image was updated
       return true;
-    }}
+    }};
 
     this.map.addImage('pulsing-dot', pulsingDot, { pixelRatio: 2 });
 
@@ -529,6 +559,7 @@ export class MapPage implements OnInit {
   public initZonesDataSource(centerPoints: FeatureCollection<Point> = null): void {
 
     if (centerPoints) {
+      // console.log(centerPoints);
       centerPoints.features.forEach((f: Feature<Point>) => {
 
         // Generate a circle with the Point location as center
