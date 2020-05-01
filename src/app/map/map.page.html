@@ -8,7 +8,7 @@
         <ion-row>
           <ion-col class="searchElements ion-align-self-start">
             <div>
-              <ion-button (click)="fixCamera()">
+              <ion-button (click)="followUserCurrentPosition()">
                 <ion-icon name="locate"></ion-icon>
               </ion-button>
             </div>
@@ -19,10 +19,10 @@
               id="searchBar" debounce=800 (ionChange)="search($event)"  showCancelButton="never"
               [value]="" placeholder=" Rechercher ...">
               </ion-searchbar>
-              <ion-list lines="none" *ngIf="shouldDisplayAddresses">
+              <ion-list lines="none" *ngIf="autocompleteResults.shouldDisplayAddresses">
                 <ion-item button 
                   class="item-text-wrap"
-                  *ngFor="let feature of featureCollectionSearchResults.features" 
+                  *ngFor="let feature of autocompleteResults.centerPointsFound.features" 
                   (click)="onSelectProposedAddress(feature)">
                   <ion-icon name="add"></ion-icon>
                   <ion-label class="ion-text-wrap">&nbsp;{{ feature['place_name_fr'] }}</ion-label>
