@@ -273,8 +273,8 @@
   </ion-row>
 
   <ion-row>
-    <ion-col>
-      <ion-button color="danger" [routerLink]="['/','refus']" (click)="deny()">Refuser</ion-button>
+    <ion-col><!--[routerLink]="['/','refus']"-->
+      <ion-button color="danger"  (click)="deny()">Refuser</ion-button>
     </ion-col>
     <ion-col>
       <ion-button color="primary" [routerLink]="['/','main']" (click)="accept()">Accepter</ion-button>
