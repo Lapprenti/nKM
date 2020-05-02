@@ -1,6 +1,7 @@
 import { SharedService } from './../shared.service';
 import { Component, OnInit } from '@angular/core';
 import { mapDarkStyle, mapLightStyle } from 'src/environments/environment';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-configuration',
@@ -21,7 +22,7 @@ export class ConfigurationPage implements OnInit {
   public btnDeleteDataContent = 'Supprimer les données';
   public btnDeleteClicked = false;
 
-  constructor(private service: SharedService) {
+  constructor(private service: SharedService, private router: Router) {
     service.initStyleProperties();
     service.getTheme().subscribe((theme) => {
       if (theme === 'dark') {
@@ -163,6 +164,10 @@ export class ConfigurationPage implements OnInit {
     this.circleRadius = 1000;
     this.service.resetCircleRadius();
     this.service.deleteZonesData();
+  }
+
+  goToLegalPage() {
+    this.router.navigateByUrl('/legal', { skipLocationChange: false });
   }
 
 }
