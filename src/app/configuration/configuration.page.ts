@@ -89,11 +89,13 @@ export class ConfigurationPage implements OnInit {
     const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
 
     // A tester sur iPhone avec environnment dark et light
-    systemDark.addEventListener('change', (systemInitiatedDark) => {
+    systemDark.addEventListener(('change'), (systemInitiatedDark) => {
       if (systemInitiatedDark.matches) {
-        document.body.setAttribute('data-theme', 'dark');
+        document.body.classList.toggle('dark', true);
+        // document.body.setAttribute('data-theme', 'dark');
       } else {
-        document.body.setAttribute('data-theme', 'light');
+        document.body.classList.toggle('dark', false);
+        // document.body.setAttribute('data-theme', 'light');
       }
     });
 
