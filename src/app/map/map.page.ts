@@ -21,6 +21,18 @@ import {
   GeoJSONSource
 } from 'mapbox-gl';
 
+
+interface DefaultValues {
+  _MAP_CONTAINER: string;
+  _BEARING: number;
+  _PITCH: number;
+  _ZOOM: number;
+  _MIN_ZOOM_ALLOWED: number;
+  _MAX_ZOOM_ALLOWED: number;
+  _FLY_TO_DURATION: number;
+  _CIRCLE_RESOLUTION: number;
+}
+
 interface DynamicLocation {
   lat: number;
   lng: number;
@@ -33,10 +45,12 @@ interface GeographicData {
 }
 
 interface MapData {
+  default: DefaultValues;
   location: DynamicLocation;
   geographicData: GeographicData;
   style: string;
   autoSetMapCenter: boolean;
+  isLoaded: boolean;
 }
 
 interface AutoCompleteData {
@@ -110,19 +124,23 @@ export class MapPage implements OnInit {
 
   /** Map properties */
   public map: Map;
+  public userSource: GeoJSONSourceOptions;
+  public zonesSource: GeoJSONSourceOptions;
+  public userLayer: Layer;
+  public zonesLayer: Layer;
 
   /** Map data properties */
   private mapDataObservable = new Subject<MapData>();
-  private mapDataObject: MapData = null;
+  public mapDataObject: MapData = null;
 
   /** Location properties */
   private userCurrentLocation: DynamicLocation = null;
   private userPreviousLocation: DynamicLocation = null;
+  private userLocation: FeatureCollection<Point>;
 
   /** Zones data properties */
   private geographicalData: GeographicData = null;
   private previousCircleRadius: number = null;
-  private previousNumberOfCenterPoints: number = null;
 
   /** Style data property */
   private previousStyle: string = null;
@@ -161,19 +179,28 @@ export class MapPage implements OnInit {
           //
           // 8 - init map with data
           if ( !this.map ) {
+            this.initSources();
+            this.initLayers();
             this.initMap();
+            this.addUserAnimatedIcon();
+            this.addLayersAndSourcesToMap();
+            this.trackMapLoading();
+            this.trackMapTouch();
           } else {
+
+            if (mapData.isLoaded) {
+              this.layersAndSourcesOversight();
+            }
 
             // case 1 - The user is moving
             if ( mapData.location !== this.userPreviousLocation) {
               this.updateMapPosition(mapData.location);
+              this.updateUserPosition(mapData.location);
             }
 
             // case 2 - the user has changed the app style
             if ( mapData.style !== this.previousStyle) {
-              console.log('Should change the map style');
               this.updateMapStyle(mapData.style);
-
               // style is updated - prevent trigger this condition again
               this.previousStyle = mapData.style;
             }
@@ -182,17 +209,36 @@ export class MapPage implements OnInit {
             if (mapData.geographicData.userDefinedCircleRadius !== this.previousCircleRadius) {
               console.log('Should reconstruct zones circles with the new radius');
 
+              this.processCenterPoints().then((processComplete) => {
+                if (processComplete) {
+                  this.refreshMapLayerSource('zones', this.mapDataObject.geographicData.generatedCircles);
+                } else {
+                  console.log('An error happened while updating points.');
+                }
+              });
+
               // new circle radius is updated - prevent trigger this condition again
               this.previousCircleRadius = mapData.geographicData.userDefinedCircleRadius;
             }
 
             // case 4 - there is a new center point
-            if (mapData.geographicData.userCenterPoints.features.length !== this.previousNumberOfCenterPoints) {
-              console.log('Should add zones circles');
+            if (
+              mapData.geographicData.userCenterPoints.features.length
+               !==
+              mapData.geographicData.generatedCircles.features.length
+               &&
+              mapData.isLoaded) {
+              this.processCenterPoints().then((processComplete) => {
+                if (processComplete) {
+                  this.refreshMapLayerSource('zones', this.mapDataObject.geographicData.generatedCircles);
+                } else {
+                  console.log('This zone was already drawn.');
+                }
+              });
             }
           }
         } else {
-          console.log('The data requirements are not loaded yet. Waiting them to start building the map.');
+          console.log('Data requirements are not loaded yet. Waiting them to start building the map.');
         }
       });
     }
@@ -268,26 +314,92 @@ export class MapPage implements OnInit {
 
     // 6 - subscribe user center points and update map data associated property
     this.service.getZonesData().subscribe((fcUserSavedPoints) => {
-      this.previousNumberOfCenterPoints = this.geographicalData.userCenterPoints.features.length;
       this.geographicalData.userCenterPoints = fcUserSavedPoints;
       this.mapDataObject.geographicData.userCenterPoints = this.geographicalData.userCenterPoints;
       this.updateMapData(this.mapDataObject);
     });
   }
 
+  ionViewDidEnter() {
+    if (this.map) {
+      this.map.resize();
+    }
+  }
+
   //#region Map creation and actions
+
+  /**
+   * Init values of geoJsonSource properties
+   */
+  public initSources() {
+    // 1 - User source linked to data
+    // 1.1 - create a feature collection linked to the user position
+    //        as a source of the mapbox's map data
+    const userLocationFeature: Feature<Point> = {
+      geometry: {
+        coordinates: [this.mapDataObject.location.lng, this.mapDataObject.location.lat],
+        type: 'Point',
+      },
+      properties: [],
+      type: 'Feature'
+    };
+
+    this.userLocation = {
+      features: [userLocationFeature],
+      type: 'FeatureCollection'
+    };
+
+    this.userSource = {
+      data: this.userLocation,
+      cluster: false
+    };
+
+    // 2 - Zones layer linked to data
+    this.zonesSource = {
+      data: this.mapDataObject.geographicData.generatedCircles,
+      cluster: false
+    };
+  }
+
+  /**
+   * Init values of layers with geoJsonSource properties
+   */
+  public initLayers() {
+    // 1 - User layer linked to data
+    this.userLayer = {
+      id: 'user',
+      type: 'symbol',
+      source: 'user',
+      layout: {
+        'icon-image': 'pulsing-dot',
+        //'icon-size': 0.05
+      }
+    };
+
+    // 2 - Zones layer linked to data
+    this.zonesLayer = {
+      id: 'zones',
+      type: 'fill',
+      source: 'zones',
+      paint: {
+        'fill-color': 'blue',
+        'fill-opacity': 0.1
+      }
+    };
+  }
   /**
    * Initializes the map
    */
   public initMap(): void {
     this.map = new Map({
-      container: 'map',
+      container: this.mapDataObject.default._MAP_CONTAINER,
       style: this.mapDataObject.style,
-      zoom: 15,// MapPage._DEFAULT_ZOOM,
-      //maxZoom: MapPage._MAX_ZOOM_ALLOWED,
+      zoom: this.mapDataObject.default._ZOOM,
+      maxZoom: this.mapDataObject.default._MAX_ZOOM_ALLOWED,
+      minZoom: this.mapDataObject.default._MIN_ZOOM_ALLOWED,
       center: [this.mapDataObject.location.lng, this.mapDataObject.location.lat],
-      pitch: 0,//MapPage._DEFAULT_PITCH,
-      bearing: 0, //MapPage._DEFAULT_BEARING,
+      pitch: this.mapDataObject.default._PITCH,
+      bearing: this.mapDataObject.default._BEARING,
       accessToken: mapBoxAccessToken
     });
   }
@@ -296,18 +408,8 @@ export class MapPage implements OnInit {
    * Resets the camera position on the user coordinates with a flying animation
    */
   public followUserCurrentPosition(): void {
-    this.map.flyTo({
-      center: [this.mapDataObject.location.lng, this.mapDataObject.location.lat],
-      zoom: 10,//MapPage._DEFAULT_ZOOM,
-      bearing: 40,//MapPage._DEFAULT_BEARING,
-      pitch: 0,//MapPage._DEFAULT_PITCH,
-      duration: 5000,//MapPage._FLY_TO_CURRENT_POSITION_DURATION,
-      speed: 1,
-      curve: 1,
-      easing: (t) => t,
-      essential: true,
-    });
-    setTimeout(() => this.mapDataObject.autoSetMapCenter = true, 10000/**MapPage._FLY_TO_CURRENT_POSITION_DURATION */);
+    this.flyToPosition(this.mapDataObject.location);
+    setTimeout(() => this.mapDataObject.autoSetMapCenter = true, this.mapDataObject.default._FLY_TO_DURATION);
   }
 
   /**
@@ -316,6 +418,7 @@ export class MapPage implements OnInit {
    */
   public updateMapStyle(styleToSet: string) {
     this.map.setStyle(styleToSet);
+    this.mapDataObject.isLoaded = false;
   }
 
   /**
@@ -328,11 +431,158 @@ export class MapPage implements OnInit {
     }
   }
 
+  /**
+   * Updates the user position to new coordinates
+   */
+  public updateUserPosition(location: DynamicLocation): void {
+    if ( this.userLocation.features.length === 1 ) {
+      const userLocation: Feature<Point> = {
+        geometry: {
+          coordinates: [location.lng, location.lat],
+          type: 'Point',
+        },
+        properties: [],
+        type: 'Feature'
+      };
+      this.userLocation.features[0].geometry.coordinates = [userLocation.geometry.coordinates[0], userLocation.geometry.coordinates[1]];
+      this.refreshMapLayerSource('user', this.userLocation);
+    }
+  }
 
+  /**
+   * Animate a transition to a specific point on the map
+   * @param newLocation position to fly to
+   */
+  public flyToPosition(newLocation: DynamicLocation) {
+    this.map.flyTo({
+      center: [newLocation.lng, newLocation.lat],
+      zoom: this.mapDataObject.default._ZOOM,
+      bearing: this.mapDataObject.default._BEARING,
+      duration: this.mapDataObject.default._FLY_TO_DURATION,
+      speed: 1,
+      curve: 1,
+      easing: (t) => t,
+      essential: true,
+    });
+  }
+
+  /**
+   * Update the source data
+   * @param id the id of the layer which is on the map
+   * @param featureCollection the updated source of the layer
+   */
+  public refreshMapLayerSource(id: string, featureCollection: FeatureCollection<any>) {
+    (this.map.getSource(id) as mapboxgl.GeoJSONSource).setData(featureCollection);
+  }
+
+  /**
+   * Adds a data source to the map
+   * @param id The data source id
+   * @param source The data source object
+   */
+  public addLayersAndSourcesToMap(): void {
+    this.map.on('load', () => {
+      this.map.addSource('user', { type: 'geojson', ...this.userSource });
+      this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
+      this.addLayerToMap(this.userLayer);
+      this.addLayerToMap(this.zonesLayer);
+    });
+  }
+
+  /**
+   * Can watch the map loading
+   */
+  public trackMapLoading() {
+      this.map.on('idle', () => {
+      if (this.map.areTilesLoaded() && this.map.isStyleLoaded() && !this.mapDataObject.isLoaded) {
+        // update the property to true and update the map data object
+        this.mapDataObject.isLoaded = true;
+        this.updateMapData(this.mapDataObject);
+      }
+      this.map.triggerRepaint();
+    });
+  }
+
+  /**
+   * Set the auto center map to false
+   */
+  public trackMapTouch(): void {
+    this.map.on('touchstart', () => {
+      this.mapDataObject.autoSetMapCenter = false;
+      this.updateMapData(this.mapDataObject);
+    });
+  }
+
+  /**
+   * Track sources and layer, add them when missing
+   */
+  public layersAndSourcesOversight() {
+    try {
+      const userSource = this.map.getSource('user');
+      const zonesSource = this.map.getSource('zones');
+      if (!userSource && !zonesSource) {
+        this.addUserAnimatedIcon();
+        this.map.addSource('user', { type: 'geojson', ...this.userSource });
+        this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
+        this.addLayerToMap(this.userLayer);
+        this.addLayerToMap(this.zonesLayer);
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  /**
+   * Adds a layer to the map
+   * @param layer the layer to add on the map
+   */
+  public addLayerToMap(layer: Layer): void {
+    this.map.addLayer(layer);
+  }
+  //#endregion
+
+  //#region Zone logical process
+
+  /**
+   * Take last center point and gene
+   */
+  public processCenterPoints(): Promise<boolean> {
+
+    this.mapDataObject.geographicData.generatedCircles.features = [];
+    const centerPoints = this.mapDataObject.geographicData.userCenterPoints.features;
+
+    const process = new Promise<boolean>((resolve, reject) => {
+
+      try {
+        centerPoints.forEach((centerPoint) => {
+          // Generate one feature to draw on the map with radius taken from user setting associated
+          const featureToDraw = this.generateCircle(
+            [centerPoint.geometry.coordinates[0], centerPoint.geometry.coordinates[1]],
+            this.mapDataObject.geographicData.userDefinedCircleRadius / 1000,
+            this.mapDataObject.default._CIRCLE_RESOLUTION,
+            centerPoint.id,
+            this.autocompleteResults.userSelectedFeatureName
+          );
+          this.mapDataObject.geographicData.generatedCircles.features.push(featureToDraw);
+        });
+        resolve(true);
+      } catch (error) {
+        reject(false);
+      }
+
+    });
+
+    return process;
+
+  }
   //#endregion
 
   //#region Autocomplete searched address
 
+  /**
+   * Send the input value to the mapbox places API
+   * @param event the event associated to the html element
+   */
   search(event: any) {
     const searchTerm = event.target.value.toLowerCase();
     if (searchTerm && searchTerm.length > 0) {
@@ -351,13 +601,17 @@ export class MapPage implements OnInit {
       }
   }
 
+  /**
+   * Add the address selected by the user to the map
+   * @param feature the address chosen in the list
+   */
   onSelectProposedAddress(feature: Feature<Point>) {
     this.autocompleteResults.shouldDisplayAddresses = false;
     this.autocompleteResults.userSelectedFeature = feature;
 
     /**
      * Feature returned by the mapbox api places does to fit with Feature<Point> specificities
-     * Have to force acces via string literal causing lint warning
+     * Have to force access via string literal causing lint warning
      * "object access via string literals is disallowed"
      */
     this.autocompleteResults.userSelectedFeatureName = feature['place_name_fr'];
@@ -366,23 +620,17 @@ export class MapPage implements OnInit {
     const featureType = feature.type;
     const featureGeometry = feature.geometry;
 
-    // // console.log(this.userZonesData)
+    const featureLocation: DynamicLocation = {
+      lng: feature.geometry.coordinates[0],
+      lat: feature.geometry.coordinates[1]
+    };
 
     // Handle if the feature is already in the dataset
     for (const circleCenterFeature of this.mapDataObject.geographicData.userCenterPoints.features) {
       if (circleCenterFeature.properties[0] === this.autocompleteResults.userSelectedFeatureName) {
 
         // Fly to the existing feature
-        this.map.flyTo({
-          center: [feature.geometry.coordinates[0], feature.geometry.coordinates[1]],
-          zoom: 15,//MapPage._DEFAULT_ZOOM,
-          bearing: 0,//MapPage._DEFAULT_BEARING,
-          duration: 5000,//MapPage._FLY_TO_CURRENT_POSITION_DURATION,
-          speed: 1,
-          curve: 1,
-          easing: (t) => t,
-          essential: true,
-        });
+        this.flyToPosition(featureLocation);
 
         return;
       }
@@ -398,38 +646,30 @@ export class MapPage implements OnInit {
       geometry: featureGeometry
     };
 
-    // Generate one feature to draw on the map with radius taken from user setting associated
-    // const featureToDraw = this.generateCircle(
-    //   [featureGeometry.coordinates[0], featureGeometry.coordinates[1]],
-    //   1,
-    //   512,
-    //   featureId,
-    //   this.selectedFeaturePlaceName
-    // );
-
-    // // data sets updates
-    // this.addFeatureToDataset(featureToSave, this.userZonesData);
-    // this.addFeatureToDataset(featureToDraw, this.userZonesDataAsCircles);
-    // this.updateSourceDataset('zones', this.userZonesDataAsCircles);
-
     // fly to freshly added feature
-    this.map.flyTo({
-      center: [feature.geometry.coordinates[0], feature.geometry.coordinates[1]],
-      zoom: 15,// MapPage._DEFAULT_ZOOM,
-      bearing: 0,//MapPage._DEFAULT_BEARING,
-      duration: 5000,//MapPage._FLY_TO_CURRENT_POSITION_DURATION,
-      speed: 1,
-      curve: 1,
-      easing: (t) => t,
-      essential: true,
-    });
+    this.flyToPosition(featureLocation);
 
     this.mapDataObject.geographicData.userCenterPoints.features.push(featureToSave);
-    this.updateMapData(this.mapDataObject);
+    // this.updateMapData(this.mapDataObject);
     this.service.updateZonesData(this.mapDataObject.geographicData.userCenterPoints);
   }
-  //#region Map data interface management
+
+  //#endregion
+
+  //#region 0 - Map data interface management
   public initMapData(): void {
+
+    // init default values
+    const mapDefaultValues: DefaultValues = {
+      _MAP_CONTAINER: 'map',
+      _BEARING: 0,
+      _PITCH: 40,
+      _ZOOM: 14,
+      _MIN_ZOOM_ALLOWED: 5,
+      _MAX_ZOOM_ALLOWED: 18,
+      _FLY_TO_DURATION: 3500,
+      _CIRCLE_RESOLUTION: 512
+    };
 
     //#region Geographical Data init
     const fcEmptyCenterPoints: FeatureCollection<Point> = {
@@ -466,17 +706,19 @@ export class MapPage implements OnInit {
 
     // Construct the mapData object
     const mapInitiatedData: MapData = {
+      default: mapDefaultValues,
       geographicData: this.geographicalData,
       location: this.userCurrentLocation,
       style: null,
-      autoSetMapCenter: true //TODO - set false
+      autoSetMapCenter: true,
+      isLoaded: false
     };
 
-    // Update its value
+    // Assign value generated to the map data object
     this.mapDataObject = mapInitiatedData;
   }
 
-  //#region get and update initial map data properties
+  //#region 0.1 get and update initial map data properties
   public getMapData(): Observable<MapData> {
     return this.mapDataObservable.asObservable();
   }
@@ -487,667 +729,139 @@ export class MapPage implements OnInit {
 
   //#endregion
 
-
-
-//#region OLD MECHANISM
-
-//   constructor(
-//     private service: SharedService,
-//     private geoService: GeoService,
-//     private geolocation: Geolocation
-//     ) {
-
-//     this.getGeolocation().subscribe((dL: DynamicLocation) => {
-//       // console.log(dL);
-//       // Add the user location feature
-//       if (this.userLocationData.features.length === 0) {
-//         const userFeature: Feature<Point> = {
-//           id: 'user',
-//           type: 'Feature',
-//           properties: [],
-//           geometry: {
-//             type: 'Point',
-//             coordinates: [dL.lng, dL.lat]
-//           }
-//         };
-//         this.addFeatureToDataset(userFeature, this.userLocationData);
-//       }
-
-//       if (this.map) {
-
-//         // console.log('Une map existe');
-//         const mapSourceUser = this.map.getSource('user');
-//         // console.log(mapSourceUser)
-//         if ( mapSourceUser ) {
-//           // console.log('Maj pos user / map');
-//           this.updateMapPosition(dL.lng, dL.lat);
-//           this.updateUserPosition(dL.lng, dL.lat);
-//         }
-        
-        
-
-//       } else {
-
-//         // // console.log('nouvelle map');
-//         this.currentLng = dL.lng;
-//         this.currentLat = dL.lat;
-
-//         this.initMap();
-//       }
-//     });
-
-//     // this.storage.clear();
-//     this.service.initStyleProperties();
-
-//     this.GetIsMapLoaded().subscribe((isLoaded) => {
-//       this.isMapNotLoaded = false;
-
-//       /**
-//        * wait the map container to be sized as wanted and then resize
-//        * this trigger to early : "this.map.resize();"
-//        * but this is working ↓ (it wait still more than one line)
-//        */
-//       setTimeout(() => {
-//         this.map.resize();
-//       }, 0);
-//     });
-//   }
-
-//   ngOnInit() {
-
-//     // get the circle radius registered in local storage from service
-//     this.service.getZoneCircleRadius().subscribe((circleRadius: number) => {
-//       this.definedCircleRadius = circleRadius / 1000;
-//       if (this.map) {
-//         const zoneLayer = this.map.getLayer('zones');
-//         if (zoneLayer) {
-//           this.updateSourceZonesAsCircleDataSet(this.userZonesData);
-//         }
-//       }
-//     });
-
-//     // get the style and define if it has to create or update map
-//     this.service.getMapStyle().subscribe( (mapStyle) => {
-
-//       if (this.map) {
-//         // // console.log('reglage style')
-//         this.map.setStyle(mapStyle);
-//         const zoneLayer = this.map.getLayer('zones');
-//         if (zoneLayer) {
-//           this.updateSourceZonesAsCircleDataSet(this.userZonesData);
-//         }
-        
-//         else {
-//           this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
-//           // this.addLayerToMap(this.zonesLayer);
-//         }
-//         const userLayer = this.map.getLayer('user');
-        
-//         this.updateSourceDataset('user', this.userLocationData);
-//         if (userLayer) {
-//           // console.log(userLayer)
-          
-//         } else {
-//           this.map.addSource('user', { type: 'geojson', ...this.userSource });
-
-//           // this.addLayerToMap(this.userLayer);
-//         }
-//       } else {
-
-//         this.mapStyle = mapStyle;
-//         this.initSources();
-//         this.initLayers();
-//       }
-//     });
-
-//     //  get the user location collection for zones
-//     this.service.getZonesData().subscribe( (zones: FeatureCollection<Point>) => {
-
-//       // update the user zones data
-//       this.userZonesData = zones;
-
-//       // if there is not layer on map init, else update
-//       if (this.map) {
-//         const zoneLayer = this.map.getLayer('zones');
-//         if (zoneLayer) {
-//           this.updateSourceZonesAsCircleDataSet(this.userZonesData);
-//         } else {
-//           // // console.log('init les zones');
-//           // // console.log(zones);
-//           this.initZonesDataSource(this.userZonesData);
-//         }
-//       } else {
-//         this.initZonesDataSource(this.userZonesData);
-//         // // console.log('init les zones');
-//         // // console.log(zones);
-//       }
-//     });
-//   }
-
-//   /**
-//    * Initializes the map
-//    */
-//   public initMap(): void {
-//     this.map = new Map({
-//       container: MapPage._MAP_CONTAINER,
-//       style: this.mapStyle,
-//       zoom: MapPage._DEFAULT_ZOOM,
-//       maxZoom: MapPage._MAX_ZOOM_ALLOWED,
-//       center: [this.currentLng, this.currentLat],
-//       pitch: MapPage._DEFAULT_PITCH,
-//       bearing: MapPage._DEFAULT_BEARING,
-//       accessToken: mapBoxAccessToken
-//     });
-
-//     this.map.on('load', () => {
-//       this.addUserAnimatedIcon();
-//       // console.log('load');
-//     });
-
-//     // triggered when the map style change (re add the missing layer if not exists)
-//     this.map.on('styledata', (status) => {
-//       // console.log('styledata');
-//       try {
-
-//         const zoneSource = this.map.getLayer('zones');
-//         if ( !zoneSource ) {
-//           this.map.addSource('zones', { type: 'geojson', ...this.zonesSource });
-//         }
-
-//         const zoneLayer = this.map.getLayer('zones');
-//         if (!zoneLayer) {
-//           this.addLayerToMap(this.zonesLayer);
-//         }
-//         // console.log(this.userSource)
-
-//         const userSource = this.map.getSource('user');
-//         if ( !userSource ) {
-//           // console.log('re add user source');
-//           this.map.addSource('user', { type: 'geojson', ...this.userSource });
-//         }
-
-//         const userLayer = this.map.getLayer('user');
-
-//         if (!userLayer) {
-//           if (!this.map.hasImage('pulsing-dot')) {
-//             this.addUserAnimatedIcon();
-//           }
-//           this.addLayerToMap(this.userLayer);
-//         }
-//       } catch (error) {
-//         // // console.log(error);
-//       }
-//     });
-
-//     this.map.on('idle', () => {
-//       // // console.log('idle event');
-//       if (this.map.areTilesLoaded() && this.map.isStyleLoaded() && this.isMapNotLoaded) {
-//         // update the property
-//         this.isMapNotLoaded = false;
-//         this.isMapLoaded.next(true);
-//       }
-//       this.map.triggerRepaint();
-//     });
-
-//     // this.map.on('touchstart', () => {
-//     //   // console.log('touched')
-//     //   this.following = false;
-//     // });
-//     this.listenToMapTouch();
-
-
-//   }
-
-//   /**
-//    * Resets the camera position on the user coordinates with a flying animation
-//    */
-//   public fixCamera(): void {
-//     this.map.flyTo({
-//       center: [this.currentLng, this.currentLat],
-//       zoom: MapPage._DEFAULT_ZOOM,
-//       bearing: MapPage._DEFAULT_BEARING,
-//       pitch: MapPage._DEFAULT_PITCH,
-//       duration: MapPage._FLY_TO_CURRENT_POSITION_DURATION,
-//       speed: 1,
-//       curve: 1,
-//       easing: (t) => t,
-//       essential: true,
-//     });
-//     setTimeout(() => this.following = true, MapPage._FLY_TO_CURRENT_POSITION_DURATION);
-//   }
-
-//   //#region user location management
-
-//   /**
-//    * Initializes the current coordinates and sets the coordinates update
-//    */
-//   public getGeolocation(): Observable<DynamicLocation> {
-//     this.geolocation.getCurrentPosition({ enableHighAccuracy: true })
-//         .then(
-//           (currentGeoLocation) => {
-
-//             this.currentLat = currentGeoLocation.coords.latitude;
-//             this.currentLng = currentGeoLocation.coords.longitude;
-//             this.currentSpeed = currentGeoLocation.coords.speed;
-
-//             // Update the value of dynamic location
-//             // const dL: DynamicLocation = {
-//             //   'lat' : currentGeoLocation.coords.latitude,
-//             //   'lng' : currentGeoLocation.coords.longitude
-//             // }
-//             // this.dynamicLocation.next(dL)
-
-//             this.geolocation.watchPosition().subscribe(
-//               (dynamicGeoposition) => {
-
-//                 // console.log('dynamicGeoposition');
-//                 // console.log(dynamicGeoposition);
-
-//                 const dL: DynamicLocation = {
-//                   'lat' : dynamicGeoposition.coords.latitude,
-//                   'lng' : dynamicGeoposition.coords.longitude
-//                 }
-//                 this.dynamicLocation.next(dL)
-
-//                 this.currentSpeed = dynamicGeoposition.coords.speed;
-
-//                 // this.updateMapPosition(this.currentLng, this.currentLat);
-//                 // this.updateUserPosition(this.currentLng, this.currentLat);
-//               }, ( error ) => {  console.log(error); }
-//             );
-//           });
-//     return this.dynamicLocation.asObservable();
-//   }
-
-//   /**
-//    * Fires events when the map is touched
-//    */
-//   public listenToMapTouch(): void {
-//     this.map.on('touchstart', () => {
-//       // console.log('touched')
-//       this.following = false;
-//     });
-//   }
-
-//   /**
-//    * Updates the map position to new coordinates
-//    * @param lng The new map center longitude
-//    * @param lat The new map center latitude
-//    */
-//   public updateMapPosition(lng: number, lat: number): void {
-//     // console.log('this.updateMapPosition')
-//     // console.log(this.currentLat);
-//     // console.log('');
-//     if ( this.following ) {
-//       this.map.setCenter([lng, lat]);
-//     }
-//   }
-
-//   /**
-//    * Updates the user position to new coordinates
-//    * @param lng The new user position longitude
-//    * @param lat The new user position latitude
-//    */
-//   public updateUserPosition(lng: number, lat: number): void {
-//     // // console.log('this.updateUserPosition')
-//     if ( this.userLocationData.features[0] ) {
-//       this.userLocationData.features[0].geometry.coordinates = [lng, lat];
-//       this.updateSourceDataset('user', this.userLocationData);
-//     }
-//   }
-
-//   //#endregion
-
-
-//   //#region Autocomplete searched address
-
-//   search(event: any) {
-//     const searchTerm = event.target.value.toLowerCase();
-//     if (searchTerm && searchTerm.length > 0) {
-//       this.geoService
-//         .searchAddressWithWordStart(searchTerm)
-//         .subscribe((featureCollection: FeatureCollection<Point>) => {
-//           this.featureCollectionSearchResults = featureCollection;
-//           if (this.featureCollectionSearchResults.features) {
-//             if (this.featureCollectionSearchResults.features.length > 0) {
-//               this.shouldDisplayAddresses = true;
-//             }
-//           }
-//         });
-//       } else {
-//         this.shouldDisplayAddresses = false;
-//       }
-//   }
-
-//   onSelectProposedAddress(feature: Feature<Point>) {
-//     this.shouldDisplayAddresses = false;
-//     this.selectedFeature = feature;
-
-//     /**
-//      * Feature returned by the mapbox api places does to fit with Feature<Point> specificities
-//      * Have to force acces via string literal causing lint warning
-//      * "object access via string literals is disallowed"
-//      */
-//     this.selectedFeaturePlaceName = feature['place_name_fr'];
-
-//     const featureId = feature.id;
-//     const featureType = feature.type;
-//     const featureGeometry = feature.geometry;
-
-//     // // console.log(this.userZonesData)
-
-//     // Handle if the feature is already in the dataset
-//     for (const circleCenterFeature of this.userZonesData.features) {
-//       if (circleCenterFeature.properties[0] === this.selectedFeaturePlaceName) {
-
-//         // Fly to the existing feature
-//         this.map.flyTo({
-//           center: [feature.geometry.coordinates[0], feature.geometry.coordinates[1]],
-//           zoom: MapPage._DEFAULT_ZOOM,
-//           bearing: MapPage._DEFAULT_BEARING,
-//           duration: MapPage._FLY_TO_CURRENT_POSITION_DURATION,
-//           speed: 1,
-//           curve: 1,
-//           easing: (t) => t,
-//           essential: true,
-//         });
-
-//         return;
-//       }
-//     }
-
-//     // Generate one feature to save in db (the center of the circle)
-//     const featureToSave: Feature<Point> = {
-//       id: featureId,
-//       type: featureType,
-//       properties: [
-//         this.selectedFeaturePlaceName
-//       ],
-//       geometry: featureGeometry
-//     };
-
-//     // Generate one feature to draw on the map with radius taken from user setting associated
-//     const featureToDraw = this.generateCircle(
-//       [featureGeometry.coordinates[0], featureGeometry.coordinates[1]],
-//       1,
-//       512,
-//       featureId,
-//       this.selectedFeaturePlaceName
-//     );
-
-//     // data sets updates
-//     this.addFeatureToDataset(featureToSave, this.userZonesData);
-//     this.addFeatureToDataset(featureToDraw, this.userZonesDataAsCircles);
-//     this.updateSourceDataset('zones', this.userZonesDataAsCircles);
-
-//     // fly to freshly added feature
-//     this.map.flyTo({
-//       center: [feature.geometry.coordinates[0], feature.geometry.coordinates[1]],
-//       zoom: MapPage._DEFAULT_ZOOM,
-//       bearing: MapPage._DEFAULT_BEARING,
-//       duration: MapPage._FLY_TO_CURRENT_POSITION_DURATION,
-//       speed: 1,
-//       curve: 1,
-//       easing: (t) => t,
-//       essential: true,
-//     });
-
-//     this.service.updateZonesData(this.userZonesData);
-//   }
-//   //#endregion
-
-//   //#region map Data init
-
-//   addUserAnimatedIcon(){
-
-//     // // console.log('adding user animated icon')
-//     const width = 75
-
-//     var pulsingDot = {
-//       width: width,
-//       height: width,
-//       data: new Uint8Array(width * width * 4),
-       
-//       // get rendering context for the map canvas when layer is added to the map
-//       onAdd: function() {
-//         var canvas = document.createElement('canvas');
-//         canvas.width = this.width;
-//         canvas.height = this.height;
-//         this.context = canvas.getContext('2d');
-//       },
-       
-//       // called once before every frame where the icon will be used
-//       render: function() {
-//         var duration = 1000;
-//         var t = (performance.now() % duration) / duration;
-        
-//         var radius = (width / 2) * 0.3;
-//         var outerRadius = (width / 2) * 0.7 * t + radius;
-//         var context = this.context;
-        
-//         // draw outer circle
-//         context.clearRect(0, 0, this.width, this.height);
-//         context.beginPath();
-//         context.arc(
-//         this.width / 2,
-//         this.height / 2,
-//         outerRadius,
-//         0,
-//         Math.PI * 2
-//       );
-//       context.fillStyle = 'rgba(255, 200, 200,' + (1 - t) + ')';
-//       context.fill();
-       
-//       // draw inner circle
-//       context.beginPath();
-//       context.arc(
-//       this.width / 2,
-//       this.height / 2,
-//       radius,
-//       0,
-//       Math.PI * 2
-//       );
-//       context.fillStyle = 'rgba(255, 100, 100, 1)';
-//       context.strokeStyle = 'white';
-//       context.lineWidth = 2 + 4 * (1 - t);
-//       context.fill();
-//       context.stroke();
-       
-//       // update this image's data with data from the canvas
-//       this.data = 
-//       context.getImageData(
-//       0,
-//       0,
-//       width,
-//       width
-//       ).data;
-       
-//       // continuously repaint the map, resulting in the smooth animation of the dot
-//       // this.map.triggerRepaint();
-//       // this.map.triggerRepaint();
-       
-//       // return `true` to let the map know that the image was updated
-//       return true;
-//     }};
-
-//     this.map.addImage('pulsing-dot', pulsingDot, { pixelRatio: 2 });
-
-//   }
-  
-
-//   /**
-//    * Initializes the map data sources
-//    */
-//   public initSources(): void {
-//     this.userSource = {
-//       data: this.userLocationData,
-//       cluster: false
-//     };
-//   }
-//   public initZonesDataSource(centerPoints: FeatureCollection<Point> = null): void {
-
-//     if (centerPoints) {
-//       // // console.log(centerPoints);
-//       centerPoints.features.forEach((f: Feature<Point>) => {
-
-//         // Generate a circle with the Point location as center
-//         const currentCircleFeature: Feature<Polygon> =
-//           this.generateCircle(
-//             [f.geometry.coordinates[0], f.geometry.coordinates[1]],
-//             this.definedCircleRadius,
-//             512,
-//             f.id
-//           );
-
-//         // Add the generated polygon to data
-//         this.userZonesDataAsCircles.features.push(currentCircleFeature);
-//       });
-//     }
-
-//     this.zonesSource = {
-//       data: this.userZonesDataAsCircles,
-//       cluster: false
-//     };
-//   }
-
-//   /**
-//    * Initializes the map data layers
-//    */
-//   public initLayers(): void {
-//     this.userLayer = {
-//       id: 'user',
-//       type: 'symbol',
-//       source: 'user',
-//       layout: {
-//         'icon-image': 'pulsing-dot',
-//         //'icon-size': 0.05
-//       }
-//     };
-
-//     this.zonesLayer = {
-//       id: 'zones',
-//       type: 'fill',
-//       source: 'zones',
-//       paint: {
-//         'fill-color': 'blue',
-//         'fill-opacity': 0.1
-//       }
-//     };
-//   }
-
-//   //#endregion
-
-//   //#region Map Logic
-
-//   GetIsMapLoaded(): Observable<boolean> {
-//     return this.isMapLoaded.asObservable();
-//   }
-
-//   /**
-//    * Updates a map data source dataset
-//    * @param id The data source id
-//    * @param data The data source new dataset
-//    */
-//   public updateSourceDataset(id: string, data: FeatureCollection): void {
-//     (this.map.getSource(id) as mapboxgl.GeoJSONSource).setData(data);
-//   }
-
-//   /**
-//    * Adds a feature to a map data source dataset
-//    * @param feature The feature to add to the dataset
-//    * @param dataset The dataset to add the feature in
-//    */
-//   public addFeatureToDataset(feature: Feature, dataset: FeatureCollection): void {
-//     dataset.features.push(feature);
-//     // if ( dataset.features.findIndex(element => element.id === feature.id) === -1 ) {
-//     //   dataset.features.push(feature);
-//     // }
-//   }
-
-//   /**
-//    * Adds a data source to the map
-//    * @param id The data source id
-//    * @param source The data source object
-//    */
-//   public addSourceToMap(id: string, source: GeoJSONSource): void {
-//     this.map.addSource(id, source);
-//   }
-
-//   public addLayerToMap(layer: Layer): void {
-//     this.map.addLayer(layer);
-//   }
-//   //#endregion
-
-//   //#region Generate circles
-
-//   /**
-//    * Recreate all circle from scratch with center points and update source dataset
-//    * @param centerPoints the center points to use for update
-//    */
-//   updateSourceZonesAsCircleDataSet(centerPoints: FeatureCollection<Point>) {
-//     this.userZonesDataAsCircles.features = [];
-//     centerPoints.features.forEach((f: Feature<Point>) => {
-
-//       // Generate a circle with the Point location as center
-//       const currentCircleFeature: Feature<Polygon> =
-//         this.generateCircle(
-//           [f.geometry.coordinates[0], f.geometry.coordinates[1]],
-//           this.definedCircleRadius,
-//           512,
-//           f.id
-//         );
-
-//       // Add the generated polygon to data
-//       this.userZonesDataAsCircles.features.push(currentCircleFeature);
-//     });
-
-//     this.updateSourceDataset('zones', this.userZonesDataAsCircles);
-//   }
-
-//   /**
-//    * Functions that create a geoJSON circle
-//    * @param center array of coordinates
-//    * @param radiusInKm circle radius in kilometer
-//    * @param points the number of points (if 6 = hexagon)
-//    * @param id identifier of the polygon
-//    */
-//   generateCircle(center, radiusInKm, points, id = null, name = null) {
-//     if (!points) { points = 1000; }
-
-//     const coords = {
-//         latitude: center[1],
-//         longitude: center[0]
-//     };
-
-//     const km = radiusInKm;
-
-//     const ret = [];
-//     const distanceX = km / (111.320 * Math.cos(coords.latitude * Math.PI / 180));
-//     const distanceY = km / 110.574;
-
-//     let theta, x, y;
-//     for ( let i = 0; i < points ; i++) {
-//         theta = ( i / points ) * ( 2 * Math.PI);
-//         x = distanceX * Math.cos(theta);
-//         y = distanceY * Math.sin(theta);
-
-//         ret.push([coords.longitude + x, coords.latitude + y]);
-//     }
-//     ret.push(ret[0]);
-
-//     const circle: Feature<Polygon> =  {
-//       type: 'Feature',
-//       geometry: {
-//           type: 'Polygon',
-//           coordinates: [ret]
-//       },
-//       properties: [id, name]
-//     };
-
-//     return circle;
-//   }
-//   // #endregion
-
-//#endregion
+  //#region Map utilities
+  /**
+   * Functions that create a geoJSON circle
+   * @param center array of coordinates
+   * @param radiusInKm circle radius in kilometer
+   * @param points the number of points (if 6 = hexagon)
+   * @param id identifier of the polygon
+   */
+  generateCircle(center, radiusInKm, points, id = null, name = null) {
+    if (!points) { points = 1000; }
+
+    const coords = {
+        latitude: center[1],
+        longitude: center[0]
+    };
+
+    const km = radiusInKm;
+
+    const ret = [];
+    const distanceX = km / (111.320 * Math.cos(coords.latitude * Math.PI / 180));
+    const distanceY = km / 110.574;
+
+    let theta, x, y;
+    for ( let i = 0; i < points ; i++) {
+        theta = ( i / points ) * ( 2 * Math.PI);
+        x = distanceX * Math.cos(theta);
+        y = distanceY * Math.sin(theta);
+
+        ret.push([coords.longitude + x, coords.latitude + y]);
+    }
+    ret.push(ret[0]);
+
+    const circle: Feature<Polygon> =  {
+      type: 'Feature',
+      geometry: {
+          type: 'Polygon',
+          coordinates: [ret]
+      },
+      properties: [id, name]
+    };
+
+    return circle;
+  }
+  //#endregion
+
+  //#region other
+
+  /**
+   * Function that resize the map when loaded
+   */
+  verifyMapLoaded() {
+    if (this.mapDataObject.isLoaded) {
+      this.map.resize();
+      return false;
+    } else {
+      return true;
+    }
+  }
+
+
+  /**
+   * Add the user image as asset in the map
+   */
+  addUserAnimatedIcon() {
+    const width = 75;
+
+    let pulsingDot = {
+      width: width,
+      height: width,
+      data: new Uint8Array(width * width * 4),
+
+      // get rendering context for the map canvas when layer is added to the map
+      onAdd: function() {
+        var canvas = document.createElement('canvas');
+        canvas.width = this.width;
+        canvas.height = this.height;
+        this.context = canvas.getContext('2d');
+      },
+
+      // called once before every frame where the icon will be used
+      render: function() {
+        const duration = 1000;
+        const t = (performance.now() % duration) / duration;
+
+        const radius = (width / 2) * 0.3;
+        const outerRadius = (width / 2) * 0.7 * t + radius;
+        const context = this.context;
+
+        // draw outer circle
+        context.clearRect(0, 0, this.width, this.height);
+        context.beginPath();
+        context.arc(
+          this.width / 2,
+          this.height / 2,
+          outerRadius,
+          0,
+          Math.PI * 2
+        );
+        context.fillStyle = 'rgba(56, 128, 255,' + (1 - t) + ')';
+        context.fill();
+
+        // draw inner circle
+        context.beginPath();
+        context.arc(
+          this.width / 2,
+          this.height / 2,
+          radius,
+          0,
+          Math.PI * 2
+        );
+        context.fillStyle = 'rgba(56, 128, 255, 1)';
+        context.strokeStyle = 'white';
+        context.lineWidth = 2 + 4 * (1 - t);
+        context.fill();
+        context.stroke();
+
+        // update this image's data with data from the canvas
+        this.data =
+        context.getImageData(
+          0,
+          0,
+          width,
+          width
+        ).data;
+
+        // return `true` to let the map know that the image was updated
+        return true;
+      }
+    };
+
+    this.map.addImage('pulsing-dot', pulsingDot, { pixelRatio: 2 });
+
+  }
+
+  //#endregion
 }
-
