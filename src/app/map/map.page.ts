@@ -159,172 +159,169 @@ export class MapPage implements OnInit {
 
       // 1 - init data
       this.initMapData();
-
-      // 2 - subscribe map data
-      this.getMapData().subscribe((mapData) => {
-        if (
-          mapData.style !== null
-          &&
-          mapData.geographicData.userDefinedCircleRadius !== null
-          &&
-          mapData.geographicData.generatedCircles !== null
-          &&
-          mapData.geographicData.userCenterPoints !== null
-          &&
-          mapData.location.lng !== null
-          &&
-          mapData.location.lat !== null
-          ) {
-
-          //
-          // 8 - init map with data
-          if ( !this.map ) {
-            this.initSources();
-            this.initLayers();
-            this.initMap();
-            this.addUserAnimatedIcon();
-            this.addLayersAndSourcesToMap();
-            this.trackMapLoading();
-            this.trackMapTouch();
-          } else {
-            const userLayer = this.map.getSource('user');
-            if (mapData.isLoaded || !userLayer) {
-              console.log('mapData.isLoaded || !userLayer');
-              console.log(mapData.isLoaded || !userLayer);
-              this.layersAndSourcesOversight();
-            }
-
-            // case 1 - The user is moving
-            if ( mapData.location !== this.userPreviousLocation) {
-              this.updateMapPosition(mapData.location);
-              this.updateUserPosition(mapData.location);
-            }
-
-            // case 2 - the user has changed the app style
-            if ( mapData.style !== this.previousStyle) {
-              this.updateMapStyle(mapData.style);
-              // style is updated - prevent trigger this condition again
-              this.previousStyle = mapData.style;
-            }
-
-            // case 3 - the circle radius is changed
-            if (mapData.geographicData.userDefinedCircleRadius !== this.previousCircleRadius) {
-              console.log('Should reconstruct zones circles with the new radius');
-
-              this.processCenterPoints().then((processComplete) => {
-                if (processComplete) {
-                  this.refreshMapLayerSource('zones', this.mapDataObject.geographicData.generatedCircles);
-                } else {
-                  console.log('An error happened while updating points.');
-                }
-              });
-
-              // new circle radius is updated - prevent trigger this condition again
-              this.previousCircleRadius = mapData.geographicData.userDefinedCircleRadius;
-            }
-
-            // case 4 - there is a new center point
-            if (
-              mapData.geographicData.userCenterPoints.features.length
-               !==
-              mapData.geographicData.generatedCircles.features.length
-               &&
-              mapData.isLoaded) {
-              this.processCenterPoints().then((processComplete) => {
-                if (processComplete) {
-                  this.refreshMapLayerSource('zones', this.mapDataObject.geographicData.generatedCircles);
-                } else {
-                  console.log('This zone was already drawn.');
-                }
-              });
-            }
-          }
-        } else {
-          console.log('Data requirements are not loaded yet. Waiting them to start building the map.');
-        }
-      });
     }
 
   ngOnInit() {
-    // 3 - subscribe geolocation and update map data associated property
-    this.geolocation.getCurrentPosition().then((initialGeoLocation) => {
+    // 2 - subscribe map data
+    this.getMapData().subscribe((mapData) => {
+      if (
+        mapData.style !== null
+        &&
+        mapData.geographicData.userDefinedCircleRadius !== null
+        &&
+        mapData.geographicData.generatedCircles !== null
+        &&
+        mapData.geographicData.userCenterPoints !== null
+        &&
+        mapData.location.lng !== null
+        &&
+        mapData.location.lat !== null
+        ) {
 
-      //#region initial geolocation process
-      const initialLocation: DynamicLocation = {
-        lng: initialGeoLocation.coords.longitude,
-        lat: initialGeoLocation.coords.latitude
-      };
+        //
+        // 8 - init map with data
+        if ( !this.map ) {
+          this.initSources();
+          this.initLayers();
+          this.initMap();
+          this.addUserAnimatedIcon();
+          this.addLayersAndSourcesToMap();
+          this.trackMapLoading();
+          this.trackMapTouch();
+        } else {
+          const userLayer = this.map.getSource('user');
+          if (mapData.isLoaded && !userLayer) {
+            this.layersAndSourcesOversight();
+          }
 
-      if ( this.userPreviousLocation === null) {
-        this.userPreviousLocation = initialLocation;
+          // case 1 - The user is moving
+          if ( mapData.location !== this.userPreviousLocation && mapData.isLoaded) {
+            this.updateMapPosition(mapData.location);
+            this.updateUserPosition(mapData.location);
+          }
+
+          // case 2 - the user has changed the app style
+          if ( mapData.style !== this.previousStyle) {
+            this.updateMapStyle(mapData.style);
+            // style is updated - prevent trigger this condition again
+            this.previousStyle = mapData.style;
+          }
+
+          // case 3 - the circle radius is changed
+          if (mapData.geographicData.userDefinedCircleRadius !== this.previousCircleRadius) {
+
+            this.processCenterPoints().then((processComplete) => {
+              if (processComplete) {
+                this.refreshMapLayerSource('zones', this.mapDataObject.geographicData.generatedCircles);
+              } else {
+                console.log('An error happened while updating points.');
+              }
+            });
+
+            // new circle radius is updated - prevent trigger this condition again
+            this.previousCircleRadius = mapData.geographicData.userDefinedCircleRadius;
+          }
+
+          // case 4 - there is a new center point
+          if (
+            mapData.geographicData.userCenterPoints.features.length
+             !==
+            mapData.geographicData.generatedCircles.features.length
+             &&
+            mapData.isLoaded) {
+            this.processCenterPoints().then((processComplete) => {
+              if (processComplete) {
+                this.refreshMapLayerSource('zones', this.mapDataObject.geographicData.generatedCircles);
+              } else {
+                console.log('This zone was already drawn.');
+              }
+            });
+          }
+        }
+      } else {
+        console.log('Data requirements are not loaded yet. Waiting before start building the map.');
       }
-      this.userCurrentLocation = initialLocation;
-      this.mapDataObject.location = this.userCurrentLocation;
-      this.updateMapData(this.mapDataObject);
-      //#endregion
-
-      //#region user watch location process
-      this.geolocation.watchPosition().subscribe( (dynamicGeolocation) => {
-        this.userPreviousLocation = this.userCurrentLocation;
-
-        const newUserCoordinates: DynamicLocation = {
-          lng: dynamicGeolocation.coords.longitude,
-          lat: dynamicGeolocation.coords.latitude
-        };
-
-        this.userCurrentLocation = newUserCoordinates;
-        this.mapDataObject.location = this.userCurrentLocation;
-        this.updateMapData(this.mapDataObject);
-      });
-      //#endregion
-    }, (geoLocationRejected) => {
-      console.log('The location access was rejected by the user : setting location to center of Dijon. ');
-
-      const initialLocation: DynamicLocation = {
-        lng: 5.034123,
-        lat: 47.323889
-      };
-
-      this.userCurrentLocation = initialLocation;
-      this.mapDataObject.location = this.userCurrentLocation;
-
-      this.updateMapData(this.mapDataObject);
-    }
-    );
-
-    // 4 - subscribe style and update map data associated property
-    this.service.getMapStyle().subscribe((mapBoxStyle) => {
-      this.previousStyle = this.mapDataObject.style;
-      if (this.previousStyle === null) {
-        this.previousStyle = mapBoxStyle;
-      }
-      this.mapDataObject.style = mapBoxStyle;
-      this.updateMapData(this.mapDataObject);
-    });
-
-    // 5 - subscribe user saved radius and update map data associated property
-    this.service.getZoneCircleRadius().subscribe((userSavedCircleRadius) => {
-      this.previousCircleRadius = this.geographicalData.userDefinedCircleRadius;
-      if (this.previousCircleRadius === null) {
-        this.previousCircleRadius = userSavedCircleRadius;
-      }
-      this.geographicalData.userDefinedCircleRadius = userSavedCircleRadius;
-      this.mapDataObject.geographicData.userDefinedCircleRadius = this.geographicalData.userDefinedCircleRadius;
-
-      this.updateMapData(this.mapDataObject);
-    });
-
-    // 6 - subscribe user center points and update map data associated property
-    this.service.getZonesData().subscribe((fcUserSavedPoints) => {
-      this.geographicalData.userCenterPoints = fcUserSavedPoints;
-      this.mapDataObject.geographicData.userCenterPoints = this.geographicalData.userCenterPoints;
-      this.updateMapData(this.mapDataObject);
     });
   }
 
   ionViewDidEnter() {
     if (this.map) {
       this.map.resize();
+    } else {
+      // 3 - subscribe geolocation and update map data associated property
+      this.geolocation.getCurrentPosition().then((initialGeoLocation) => {
+
+        //#region initial geolocation process
+        const initialLocation: DynamicLocation = {
+          lng: initialGeoLocation.coords.longitude,
+          lat: initialGeoLocation.coords.latitude
+        };
+
+        if ( this.userPreviousLocation === null) {
+          this.userPreviousLocation = initialLocation;
+        }
+        this.userCurrentLocation = initialLocation;
+        this.mapDataObject.location = this.userCurrentLocation;
+        this.updateMapData(this.mapDataObject);
+        //#endregion
+
+        //#region user watch location process
+        this.geolocation.watchPosition().subscribe( (dynamicGeolocation) => {
+          this.userPreviousLocation = this.userCurrentLocation;
+
+          const newUserCoordinates: DynamicLocation = {
+            lng: dynamicGeolocation.coords.longitude,
+            lat: dynamicGeolocation.coords.latitude
+          };
+
+          this.userCurrentLocation = newUserCoordinates;
+          this.mapDataObject.location = this.userCurrentLocation;
+          this.updateMapData(this.mapDataObject);
+        });
+        //#endregion
+      }, (geoLocationRejected) => {
+        console.log('The location access was rejected by the user : setting location to center of Dijon. ');
+
+        const initialLocation: DynamicLocation = {
+          lng: 5.034123,
+          lat: 47.323889
+        };
+
+        this.userCurrentLocation = initialLocation;
+        this.mapDataObject.location = this.userCurrentLocation;
+
+        this.updateMapData(this.mapDataObject);
+      }
+      );
+
+      // 4 - subscribe style and update map data associated property
+      this.service.getMapStyle().subscribe((mapBoxStyle) => {
+        this.previousStyle = this.mapDataObject.style;
+        if (this.previousStyle === null) {
+          this.previousStyle = mapBoxStyle;
+        }
+        this.mapDataObject.style = mapBoxStyle;
+        this.updateMapData(this.mapDataObject);
+      });
+
+      // 5 - subscribe user saved radius and update map data associated property
+      this.service.getZoneCircleRadius().subscribe((userSavedCircleRadius) => {
+        this.previousCircleRadius = this.geographicalData.userDefinedCircleRadius;
+        if (this.previousCircleRadius === null) {
+          this.previousCircleRadius = userSavedCircleRadius;
+        }
+        this.geographicalData.userDefinedCircleRadius = userSavedCircleRadius;
+        this.mapDataObject.geographicData.userDefinedCircleRadius = this.geographicalData.userDefinedCircleRadius;
+
+        this.updateMapData(this.mapDataObject);
+      });
+
+      // 6 - subscribe user center points and update map data associated property
+      this.service.getZonesData().subscribe((fcUserSavedPoints) => {
+        this.geographicalData.userCenterPoints = fcUserSavedPoints;
+        this.mapDataObject.geographicData.userCenterPoints = this.geographicalData.userCenterPoints;
+        this.updateMapData(this.mapDataObject);
+      });
     }
   }
 
