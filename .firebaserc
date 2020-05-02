@@ -1,5 +1,14 @@
 {
   "projects": {
     "default": "nkm-test-1eb8f"
+  },
+  "targets": {
+    "nkm-test-1eb8f": {
+      "hosting": {
+        "test": [
+          "test-nkm"
+        ]
+      }
+    }
   }
 }
