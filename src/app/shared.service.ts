@@ -48,7 +48,7 @@ export class SharedService {
   updateTheme(t: string) {
 
     // set the global theme for the app
-    // document.body.setAttribute('data-theme', t);
+    document.body.setAttribute('data-theme', t);
     document.body.classList.toggle('dark', t === 'dark');
 
     // update the theme on the local storage

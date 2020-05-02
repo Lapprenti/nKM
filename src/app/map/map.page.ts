@@ -187,8 +187,10 @@ export class MapPage implements OnInit {
             this.trackMapLoading();
             this.trackMapTouch();
           } else {
-
-            if (mapData.isLoaded) {
+            const userLayer = this.map.getSource('user');
+            if (mapData.isLoaded || !userLayer) {
+              console.log('mapData.isLoaded || !userLayer');
+              console.log(mapData.isLoaded || !userLayer);
               this.layersAndSourcesOversight();
             }
 
