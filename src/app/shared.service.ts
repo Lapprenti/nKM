@@ -33,9 +33,10 @@ export class SharedService {
       } else {
 
         // if first launch insert light theme
-        this.storage.set('style', 'light');
-        this.updateMapStyle(mapLightStyle);
-        this.updateTheme('light');
+        this.storage.set('style', 'light').then((defaultTheme) => {
+          this.updateMapStyle(mapLightStyle);
+          this.updateTheme(defaultTheme);
+        });
       }
     });
   }
@@ -66,14 +67,14 @@ export class SharedService {
 
   getZoneCircleRadius(): Observable<number> {
     this.storage.get('circleRadius').then((circleRadius) => {
-      console.log('circle radius');
-      console.log(circleRadius);
       if (circleRadius) {
         this.updateZoneCircleRadius(circleRadius);
       } else {
 
         // first launch default circle radius
-        this.storage.set('circleRadius', 1000);
+        this.storage.set('circleRadius', 1000).then((defaultRadius) => {
+          this.updateZoneCircleRadius(defaultRadius);
+        });
       }
     }).catch((error) => console.log('An error happened getting the saved circle radius → ' + error));
     return this.zoneCircleRadius.asObservable();
