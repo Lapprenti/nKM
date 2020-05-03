@@ -153,10 +153,6 @@ export class MapPage implements OnInit {
     private geoService: GeoService,
     private geolocation: Geolocation
     ) {
-
-      // 0 - init style properties threw service
-      this.service.initStyleProperties();
-
       // 1 - init data
       this.initMapData();
     }
@@ -248,6 +244,8 @@ export class MapPage implements OnInit {
     if (this.map) {
       this.map.resize();
     } else {
+      // 0 - init style properties threw service
+      this.service.initStyleProperties();
       // 3 - subscribe geolocation and update map data associated property
       this.geolocation.getCurrentPosition().then((initialGeoLocation) => {
 

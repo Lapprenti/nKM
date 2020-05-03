@@ -97,18 +97,7 @@ export class ConfigurationPage implements OnInit {
     function toggleDarkTheme(shouldAdd) {
       document.body.classList.toggle('dark', shouldAdd);
     }
-
-    // // A tester sur iPhone avec environnment dark et light
-    // systemDark.addEventListener(('change'), (systemInitiatedDark) => {
-    //   if (systemInitiatedDark.matches) {
-    //     document.body.classList.toggle('dark', true);
-    //     // document.body.setAttribute('data-theme', 'dark');
-    //   } else {
-    //     document.body.classList.toggle('dark', false);
-    //     // document.body.setAttribute('data-theme', 'light');
-    //   }
-    // });
-
+    
     if (event.detail.checked) {
 
       // update the value threw common service (siblings components)

@@ -52,10 +52,10 @@ export class SharedService {
     document.body.classList.toggle('dark', t === 'dark');
 
     // update the theme on the local storage
-    this.storage.set('style', t);
-
-    // update the property
-    this.theme.next(t);
+    this.storage.set('style', t).then((savedTheme) => {
+      // update the property
+      this.theme.next(savedTheme);
+    });
   }
 
   getMapStyle(): Observable<string> {
@@ -119,9 +119,7 @@ export class SharedService {
    */
   updateZonesData(zones: FeatureCollection<Point>) {
     this.zonesData.next(zones);
-    this.storage.set('userZonesData', zones).then(() => {
-      console.log('Locations data were updated.');
-    });
+    this.storage.set('userZonesData', zones);
   }
 
   deleteZonesData() {
