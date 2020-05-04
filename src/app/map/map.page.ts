@@ -622,6 +622,9 @@ export class MapPage implements OnInit {
       lat: feature.geometry.coordinates[1]
     };
 
+    // not following the user anymore
+    this.mapDataObject.autoSetMapCenter = false;
+
     // Handle if the feature is already in the dataset
     for (const circleCenterFeature of this.mapDataObject.geographicData.userCenterPoints.features) {
       if (circleCenterFeature.properties[0] === this.autocompleteResults.userSelectedFeatureName) {
@@ -647,7 +650,6 @@ export class MapPage implements OnInit {
     this.flyToPosition(featureLocation);
 
     this.mapDataObject.geographicData.userCenterPoints.features.push(featureToSave);
-    // this.updateMapData(this.mapDataObject);
     this.service.updateZonesData(this.mapDataObject.geographicData.userCenterPoints);
   }
 
