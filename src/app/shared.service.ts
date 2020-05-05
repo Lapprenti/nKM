@@ -33,9 +33,10 @@ export class SharedService {
       } else {
 
         // if first launch insert light theme
-        this.storage.set('style', 'light');
-        this.updateMapStyle(mapLightStyle);
-        this.updateTheme('light');
+        this.storage.set('style', 'light').then((defaultTheme) => {
+          this.updateMapStyle(mapLightStyle);
+          this.updateTheme(defaultTheme);
+        });
       }
     });
   }
@@ -48,12 +49,13 @@ export class SharedService {
 
     // set the global theme for the app
     document.body.setAttribute('data-theme', t);
+    document.body.classList.toggle('dark', t === 'dark');
 
     // update the theme on the local storage
-    this.storage.set('style', t);
-
-    // update the property
-    this.theme.next(t);
+    this.storage.set('style', t).then((savedTheme) => {
+      // update the property
+      this.theme.next(savedTheme);
+    });
   }
 
   getMapStyle(): Observable<string> {
@@ -66,14 +68,14 @@ export class SharedService {
 
   getZoneCircleRadius(): Observable<number> {
     this.storage.get('circleRadius').then((circleRadius) => {
-      console.log('circle radius');
-      console.log(circleRadius);
       if (circleRadius) {
         this.updateZoneCircleRadius(circleRadius);
       } else {
 
         // first launch default circle radius
-        this.storage.set('circleRadius', 1000);
+        this.storage.set('circleRadius', 1000).then((defaultRadius) => {
+          this.updateZoneCircleRadius(defaultRadius);
+        });
       }
     }).catch((error) => console.log('An error happened getting the saved circle radius → ' + error));
     return this.zoneCircleRadius.asObservable();
@@ -117,9 +119,7 @@ export class SharedService {
    */
   updateZonesData(zones: FeatureCollection<Point>) {
     this.zonesData.next(zones);
-    this.storage.set('userZonesData', zones).then(() => {
-      console.log('Locations data were updated.');
-    });
+    this.storage.set('userZonesData', zones);
   }
 
   deleteZonesData() {

@@ -1,6 +1,7 @@
 import { Storage } from '@ionic/storage';
 import { Component, OnInit } from '@angular/core';
-import { NavParams, ModalController, Platform } from '@ionic/angular';
+import { NavParams, ModalController, Platform, NavController } from '@ionic/angular';
+import { Router } from '@angular/router';
 
 @Component({
   selector: 'app-launch-modal',
@@ -13,7 +14,8 @@ export class LaunchModalPage implements OnInit {
     public navParams: NavParams,
     public modalCtrl: ModalController,
     private storage: Storage,
-    private platform: Platform
+    private platform: Platform,
+    private router: Router
   ) { }
 
   ngOnInit() {
@@ -34,6 +36,9 @@ export class LaunchModalPage implements OnInit {
         console.log('Could not exit the app');
       }
     });
+
+    // This handle the previous button in the browser after refusing terms
+    this.router.navigateByUrl('/refus', { skipLocationChange: true });
     this.closeModal();
   }
 
