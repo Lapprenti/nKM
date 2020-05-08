@@ -369,7 +369,7 @@ export class MapPage implements OnInit {
       source: 'user',
       layout: {
         'icon-image': 'pulsing-dot',
-        'icon-size': 0.05
+        //'icon-size': 0.05
       }
     };
 
@@ -857,12 +857,13 @@ export class MapPage implements OnInit {
       }
     };
 
-    this.map.loadImage('assets/map/target.png', (error, image) => {
-      if ( !error && image ) {
-        this.map.addImage('pulsing-dot', image);
-      }
-    });
-    //this.map.addImage('pulsing-dot', pulsingDot, { pixelRatio: 2 });
+    // this.map.loadImage('assets/map/target.png', (error, image) => {
+    //   if ( !error && image ) {
+    //     this.map.addImage('pulsing-dot', image);
+    //   }
+    // });
+
+    this.map.addImage('pulsing-dot', pulsingDot, { pixelRatio: 2 });
 
   }
 
