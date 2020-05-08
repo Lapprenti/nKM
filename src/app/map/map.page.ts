@@ -247,7 +247,7 @@ export class MapPage implements OnInit {
       // 0 - init style properties threw service
       this.service.initStyleProperties();
       // 3 - subscribe geolocation and update map data associated property
-      this.geolocation.getCurrentPosition().then((initialGeoLocation) => {
+      this.geolocation.getCurrentPosition({ enableHighAccuracy: true }).then((initialGeoLocation) => {
 
         //#region initial geolocation process
         const initialLocation: DynamicLocation = {
@@ -264,7 +264,7 @@ export class MapPage implements OnInit {
         //#endregion
 
         //#region user watch location process
-        this.geolocation.watchPosition().subscribe( (dynamicGeolocation) => {
+        this.geolocation.watchPosition({ enableHighAccuracy: true }).subscribe( (dynamicGeolocation) => {
           this.userPreviousLocation = this.userCurrentLocation;
 
           const newUserCoordinates: DynamicLocation = {
