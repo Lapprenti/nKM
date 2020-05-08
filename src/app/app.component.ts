@@ -6,7 +6,6 @@ import { Storage } from '@ionic/storage';
 import { Component } from '@angular/core';
 
 import { Platform } from '@ionic/angular';
-import { Insomnia } from '@ionic-native/insomnia/ngx';
 import { SplashScreen } from '@ionic-native/splash-screen/ngx';
 import { StatusBar } from '@ionic-native/status-bar/ngx';
 
@@ -22,8 +21,7 @@ export class AppComponent {
     private statusBar: StatusBar,
     private storage: Storage,
     private service: SharedService,
-    public modalController: ModalController,
-    public insomnia: Insomnia
+    public modalController: ModalController
   ) {
     this.initializeApp();
 
@@ -45,18 +43,12 @@ export class AppComponent {
      * If it does not exists create the key and link light by default (first launch)
      */
     this.service.initStyleProperties();
-
-    /**
-     * Allow the app to not fall asleep
-     */
-    insomnia.keepAwake();
   }
 
   initializeApp() {
     this.platform.ready().then(() => {
       this.statusBar.styleDefault();
       this.splashScreen.hide();
-
     });
   }
 

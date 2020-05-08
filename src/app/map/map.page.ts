@@ -17,8 +17,7 @@ import {
 import {
   Map,
   Layer,
-  GeoJSONSourceOptions,
-  GeoJSONSource
+  GeoJSONSourceOptions
 } from 'mapbox-gl';
 
 
@@ -66,61 +65,6 @@ interface AutoCompleteData {
   styleUrls: ['./map.page.scss'],
 })
 export class MapPage implements OnInit {
-
-  //#region OLD Declared properties
-
-  // static readonly _MAP_CONTAINER: string = 'map';
-
-  // // North orientation
-  // static readonly _DEFAULT_BEARING: number = 0;
-  // static readonly _DEFAULT_PITCH: number = 40;
-
-  // static readonly _DEFAULT_ZOOM: number = 15;
-  // static readonly _MIN_ZOOM_ALLOWED: number = 1;
-  // static readonly _MAX_ZOOM_ALLOWED: number = 22;
-  // static readonly _FLY_TO_CURRENT_POSITION_DURATION = 2000;
-
-  // // Map declarations
-  // private mapStyle: string;
-  // public map: Map;
-  // public isMapNotLoaded = true;
-  // public isMapLoaded = new Subject<boolean>();
-
-  // // Source data for map layers
-  // public userZonesData: FeatureCollection<Point>;
-  // public userZonesDataAsCircles: FeatureCollection<Polygon> = {
-  //   type: 'FeatureCollection',
-  //   features: []
-  // };
-  // public userLocationData: FeatureCollection<Point> = {
-  //   type: 'FeatureCollection',
-  //   features: []
-  // };
-
-  // // Map Data Sources
-  // public userSource: GeoJSONSourceOptions;
-  // public zonesSource: GeoJSONSourceOptions;
-
-  // // Map Data Layers
-  // public userLayer: Layer;
-  // public zonesLayer: Layer;
-
-  // // Map Actions
-  // public following: boolean;
-
-  // // User location
-  // private currentLng: number;
-  // private currentLat: number;
-  // public currentSpeed: number;
-
-  // // Autocomplete properties init
-  // public selectedFeature: Feature = null;
-  // public selectedFeaturePlaceName = '';
-  // public featureCollectionSearchResults: FeatureCollection<Point>;
-  // public shouldDisplayAddresses = false;
-  // public definedCircleRadius: number = null;
-
-  //#endregion
 
   /** Map properties */
   public map: Map;
