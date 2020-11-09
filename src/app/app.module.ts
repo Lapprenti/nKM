@@ -1,4 +1,4 @@
-import { Insomnia } from '@ionic-native/insomnia/ngx';
+// import { Insomnia } from '@ionic-native/insomnia/ngx';
 import { LaunchModalPageModule } from './launch-modal/launch-modal.module';
 import { NgModule } from '@angular/core';
 import { BrowserModule } from '@angular/platform-browser';
@@ -36,7 +36,7 @@ import { environment } from '../environments/environment';
     SplashScreen,
     { provide: RouteReuseStrategy, useClass: IonicRouteStrategy },
     Geolocation,
-    Insomnia
+    // Insomnia
   ],
   bootstrap: [AppComponent]
 })

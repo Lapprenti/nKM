@@ -605,7 +605,7 @@ export class MapPage implements OnInit {
     const mapDefaultValues: DefaultValues = {
       _MAP_CONTAINER: 'map',
       _BEARING: 0,
-      _PITCH: 40,
+      _PITCH: 0,
       _ZOOM: 14,
       _MIN_ZOOM_ALLOWED: 5,
       _MAX_ZOOM_ALLOWED: 18,
